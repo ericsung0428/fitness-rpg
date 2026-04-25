@@ -9,18 +9,21 @@ const CARD_POOL = [
   { id:"c08",name:"幻獸使者",rarity:"R",img:"/cards/card_08.jpg",base:{atk:32,def:30,spd:42,hp:48} },
   { id:"c09",name:"街頭鬥士",rarity:"R",img:"/cards/card_09.jpg",base:{atk:40,def:32,spd:36,hp:44} },
   { id:"c10",name:"暗夜行者",rarity:"R",img:"/cards/card_10.jpg",base:{atk:35,def:35,spd:40,hp:42} },
-  { id:"c02",name:"鐵拳戰士",rarity:"SR",img:"/cards/card_02.jpg",base:{atk:58,def:45,spd:42,hp:55} },
-  { id:"c03",name:"美食獵人",rarity:"SR",img:"/cards/card_03.jpg",base:{atk:40,def:50,spd:55,hp:58} },
-  { id:"c05",name:"都市行者",rarity:"SR",img:"/cards/card_05.jpg",base:{atk:45,def:42,spd:60,hp:52} },
-  { id:"c11",name:"次元行者",rarity:"SR",img:"/cards/card_11.jpg",base:{atk:48,def:55,spd:48,hp:50} },
-  { id:"c06",name:"暗影獵手",rarity:"SSR",img:"/cards/card_06.jpg",base:{atk:72,def:60,spd:68,hp:75} },
-  { id:"c07",name:"魔王覺醒",rarity:"SSR",img:"/cards/card_07.jpg",base:{atk:78,def:65,spd:62,hp:70} },
+  { id:"c02",name:"鐵拳戰士",rarity:"SR",img:"/cards/card_02.jpg",base:{atk:65,def:52,spd:48,hp:62} },
+  { id:"c03",name:"美食獵人",rarity:"SR",img:"/cards/card_03.jpg",base:{atk:48,def:58,spd:62,hp:65} },
+  { id:"c05",name:"都市行者",rarity:"SR",img:"/cards/card_05.jpg",base:{atk:52,def:50,spd:68,hp:58} },
+  { id:"c11",name:"次元行者",rarity:"SR",img:"/cards/card_11.jpg",base:{atk:55,def:62,spd:55,hp:60} },
+  { id:"c06",name:"暗影獵手",rarity:"SSR",img:"/cards/card_06.jpg",base:{atk:98,def:80,spd:90,hp:105} },
+  { id:"c07",name:"魔王覺醒",rarity:"SSR",img:"/cards/card_07.jpg",base:{atk:105,def:85,spd:82,hp:100} },
 ];
 const RC={R:{color:"#60a5fa",bg:"linear-gradient(135deg,#1e3a5f,#1e40af)",border:"#3b82f6",glow:"rgba(59,130,246,0.3)"},SR:{color:"#c084fc",bg:"linear-gradient(135deg,#4a1d7a,#7c3aed)",border:"#8b5cf6",glow:"rgba(139,92,246,0.4)"},SSR:{color:"#fbbf24",bg:"linear-gradient(135deg,#78350f,#d97706)",border:"#f59e0b",glow:"rgba(251,191,36,0.5)"}};
 
 function pullOne(){const r=Math.random();const rar=r<0.03?"SSR":r<0.20?"SR":"R";const p=CARD_POOL.filter(c=>c.rarity===rar);return p[Math.floor(Math.random()*p.length)];}
 function pullTen(){const r=Array.from({length:10},()=>pullOne());if(!r.some(c=>c.rarity!=="R")){const sr=CARD_POOL.filter(c=>c.rarity==="SR"||c.rarity==="SSR");r[9]=sr[Math.floor(Math.random()*sr.length)];}return r;}
 function cStats(c,lv){const rates={R:0.06,SR:0.12,SSR:0.20};const m=1+(lv-1)*(rates[c.rarity]||0.12);return{atk:Math.floor(c.base.atk*m),def:Math.floor(c.base.def*m),spd:Math.floor(c.base.spd*m),hp:Math.floor(c.base.hp*m)};}
+function calcCP(st){return Math.floor(st.atk*1.5+st.def*1.0+st.spd*1.2+st.hp*0.8);}
+function cardCP(card,lv){return calcCP(cStats(card,lv));}
+function bossCP(bs){return calcCP(bs);}
 
 /* ═══════════════════════════════════════
    BOSS DATA — 10 Bosses, infinite cycle
@@ -352,6 +355,7 @@ export default function App(){
           <CImg card={detData} sz="full" lvl={gs.cards[detData.id]?.level}/>
           <div style={{marginTop:"10px",fontSize:"20px",fontWeight:900,color:RC[detData.rarity].color}}>{detData.name}</div>
           <div style={{fontSize:"12px",color:RC[detData.rarity].color,marginTop:"2px"}}>{detData.rarity}　Lv.{gs.cards[detData.id]?.level||1}</div>
+          <div style={{fontSize:"13px",color:"#f97316",fontFamily:"'Black Ops One',cursive",marginTop:"2px"}}>⚔ 戰力 {cardCP(detData,gs.cards[detData.id]?.level||1)}</div>
           <div style={{fontSize:"11px",color:"#78716c",marginTop:"2px"}}>{detData.name}碎片：{gs.cards[detData.id]?.copies||0}</div>
           {gs.cards[detData.id]&&(()=>{const st=cStats(detData,gs.cards[detData.id].level);return(<div style={{marginTop:"10px",display:"grid",gridTemplateColumns:"1fr 1fr",gap:"5px"}}>{[{k:"atk",l:"攻擊",c:"#ef4444"},{k:"def",l:"防禦",c:"#3b82f6"},{k:"spd",l:"速度",c:"#22c55e"},{k:"hp",l:"血量",c:"#f59e0b"}].map(s=>(<div key={s.k} style={{padding:"5px",borderRadius:"7px",background:"rgba(255,255,255,0.03)"}}><div style={{fontSize:"9px",color:"#78716c"}}>{s.l}</div><div style={{fontFamily:"'Black Ops One',cursive",fontSize:"17px",color:s.c}}>{st[s.k]}</div></div>))}</div>);})()}
           {gs.cards[detData.id]?.copies>=1&&<div style={{marginTop:"12px",display:"flex",gap:"8px"}}>
@@ -425,16 +429,21 @@ export default function App(){
                 <div style={{display:"flex",justifyContent:"center",gap:"12px",fontSize:"11px"}}>
                   {[{l:"攻",v:boss.stats.atk,c:"#ef4444"},{l:"防",v:boss.stats.def,c:"#3b82f6"},{l:"速",v:boss.stats.spd,c:"#22c55e"},{l:"HP",v:boss.stats.hp,c:"#f59e0b"}].map(s=>(<div key={s.l}><span style={{color:"#78716c"}}>{s.l} </span><span style={{fontFamily:"'Black Ops One',cursive",color:s.c}}>{s.v}</span></div>))}
                 </div>
+                <div style={{marginTop:"8px",padding:"6px 12px",borderRadius:"8px",background:"rgba(249,115,22,0.08)",display:"inline-block"}}><span style={{fontSize:"11px",color:"#78716c"}}>推薦戰力 </span><span style={{fontFamily:"'Black Ops One',cursive",fontSize:"14px",color:"#f97316"}}>⚔ {Math.floor(bossCP(boss.stats)*1.2)}</span></div>
               </div>
 
               {/* Card Selection */}
-              <div style={{fontSize:"13px",fontWeight:700,color:"#a8a29e",marginBottom:"8px"}}>[選擇出戰卡片]　{btlPick.length}/3</div>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"8px"}}>
+                <span style={{fontSize:"13px",fontWeight:700,color:"#a8a29e"}}>[選擇出戰]　{btlPick.length}/3</span>
+                {btlPick.length>0&&<span style={{fontSize:"13px",fontFamily:"'Black Ops One',cursive",color:btlPick.reduce((s,cid)=>{const c=CARD_POOL.find(x=>x.id===cid);return s+(c?cardCP(c,gs.cards[cid]?.level||1):0);},0)>=Math.floor(bossCP(boss.stats)*1.2)?"#4ade80":"#f97316"}}>⚔ {btlPick.reduce((s,cid)=>{const c=CARD_POOL.find(x=>x.id===cid);return s+(c?cardCP(c,gs.cards[cid]?.level||1):0);},0)}</span>}
+              </div>
               {ownedCards.length===0?<div style={{textAlign:"center",padding:"24px",color:"#57534e",fontSize:"13px"}}>還沒有卡片，去抽獎吧！</div>:
               <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:"6px",marginBottom:"14px"}}>
-                {ownedCards.map(cid=>{const card=CARD_POOL.find(c=>c.id===cid);if(!card)return null;const isSel=btlPick.includes(cid);
+                {ownedCards.map(cid=>{const card=CARD_POOL.find(c=>c.id===cid);if(!card)return null;const isSel=btlPick.includes(cid);const cp=cardCP(card,gs.cards[cid].level);
                   return(<div key={cid} onClick={()=>toggleBtlCard(cid)} style={{textAlign:"center",cursor:"pointer"}}>
                     <CImg card={card} sz="sm" lvl={gs.cards[cid].level} sel={isSel} dim={!isSel&&btlPick.length>=3}/>
                     <div style={{fontSize:"8px",color:isSel?"#4ade80":"#78716c",marginTop:"2px",fontWeight:700}}>{card.name}</div>
+                    <div style={{fontSize:"8px",color:"#f97316",fontFamily:"'Black Ops One',cursive"}}>⚔{cp}</div>
                   </div>);
                 })}
               </div>}
@@ -499,7 +508,7 @@ export default function App(){
           {/* ═══ CARDS ═══ */}
           {vw==="cards"&&<div style={{animation:"fadeUp 0.3s ease-out"}}>
             <div style={{textAlign:"center",marginBottom:"14px",fontSize:"13px",fontWeight:700,color:"#a8a29e"}}>[角色收藏]　{owned}/{CARD_POOL.length}</div>
-            <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:"8px"}}>{CARD_POOL.map(c=>{const o=gs.cards[c.id];return(<div key={c.id} onClick={()=>o&&setCDet(c)} style={{textAlign:"center",opacity:o?1:0.25,cursor:o?"pointer":"default"}}><CImg card={c} sz="sm" lvl={o?.level}/><div style={{fontSize:"10px",color:o?RC[c.rarity].color:"#57534e",marginTop:"3px",fontWeight:700}}>{c.name}</div>{o&&o.copies>0&&<div style={{fontSize:"9px",color:"#fbbf24"}}>碎片×{o.copies}</div>}</div>);})}</div>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:"8px"}}>{CARD_POOL.map(c=>{const o=gs.cards[c.id];const cp=o?cardCP(c,o.level):0;return(<div key={c.id} onClick={()=>o&&setCDet(c)} style={{textAlign:"center",opacity:o?1:0.25,cursor:o?"pointer":"default"}}><CImg card={c} sz="sm" lvl={o?.level}/><div style={{fontSize:"10px",color:o?RC[c.rarity].color:"#57534e",marginTop:"3px",fontWeight:700}}>{c.name}</div>{o&&<div style={{fontSize:"9px",color:"#f97316",fontFamily:"'Black Ops One',cursive"}}>⚔{cp}</div>}{o&&o.copies>0&&<div style={{fontSize:"9px",color:"#fbbf24"}}>碎片×{o.copies}</div>}</div>);})}</div>
             {owned===0&&<div style={{textAlign:"center",padding:"28px",color:"#57534e",fontSize:"13px"}}>還沒有角色<br/><span style={{fontSize:"11px",color:"#78716c"}}>點 🪙 去抽獎</span></div>}
           </div>}
 
