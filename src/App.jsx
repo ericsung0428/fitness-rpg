@@ -1,22 +1,15 @@
 import { useState, useEffect, useRef } from "react";
 
-// ─── Exercise Pool ───
-const EXERCISE_POOL = [
-  { id: "punch", name: "揮拳", icon: "👊", target: 50 },
+// ─── 7 Fixed Exercises ───
+const ALL_EXERCISES = [
+  { id: "squat", name: "深蹲", icon: "🔥", target: 100 },
+  { id: "punch", name: "揮拳", icon: "👊", target: 100 },
+  { id: "grip", name: "握力", icon: "✊", target: 100 },
   { id: "tuck_jump", name: "縮腳跳", icon: "🦵", target: 50 },
+  { id: "high_knee", name: "高抬腿", icon: "🦿", target: 100 },
   { id: "precision_jump", name: "精準跳", icon: "🎯", target: 50 },
-  { id: "lateral_jump", name: "左右橫跳", icon: "↔️", target: 50 },
-  { id: "grip", name: "捏握力器", icon: "✊", target: 50 },
-  { id: "wall_step", name: "踩牆", icon: "🧱", target: 50 },
-  { id: "wall_run", name: "飛岩走壁", icon: "🏃", target: 50 },
-  { id: "burpee", name: "波比跳", icon: "💥", target: 50 },
-  { id: "pushup", name: "伏地挺身", icon: "💪", target: 50 },
-  { id: "plank", name: "棒式(秒)", icon: "🧘", target: 50 },
-  { id: "lunge", name: "弓箭步", icon: "🏹", target: 50 },
-  { id: "high_knee", name: "高抬腿", icon: "🦿", target: 50 },
+  { id: "stair_jump", name: "跳階梯", icon: "🪜", target: 50 },
 ];
-
-const SQUAT = { id: "squat", name: "深蹲", icon: "🔥", target: 100 };
 
 // ─── Skills ───
 const SKILLS = [
@@ -37,7 +30,7 @@ function xpForLevel(lv) {
   return Math.floor(80 * Math.pow(lv, 1.6));
 }
 
-// ─── Seeded shuffle ───
+// ─── Seeded shuffle for consistent random per round ───
 function seededShuffle(arr, seed) {
   const s2 = [...arr];
   let x = seed;
@@ -50,8 +43,7 @@ function seededShuffle(arr, seed) {
 }
 
 function getExercisesForRound(r) {
-  const picked = seededShuffle(EXERCISE_POOL, r * 7 + 13).slice(0, 3);
-  return [SQUAT, ...picked];
+  return seededShuffle(ALL_EXERCISES, r * 7 + 13).slice(0, 4);
 }
 
 function getRank(level) {
@@ -139,8 +131,8 @@ export default function FitnessRPG() {
       const np = { ...prev.progress, [ex.id]: (prev.progress[ex.id] || 0) + reps };
       const nt = { ...prev.totalReps, [ex.id]: (prev.totalReps[ex.id] || 0) + reps };
       const ns = { ...prev.stats };
-      if (ex.id === "squat") { ns.stamina += Math.ceil(ratio * 2); ns.jump += Math.ceil(ratio); }
-      else if (ex.id === "punch" || ex.id === "pushup") { ns.strength += Math.ceil(ratio * 2); }
+      if (ex.id === "squat" || ex.id === "high_knee" || ex.id === "stair_jump") { ns.stamina += Math.ceil(ratio * 2); ns.jump += Math.ceil(ratio); }
+      else if (ex.id === "punch") { ns.strength += Math.ceil(ratio * 2); ns.agility += Math.ceil(ratio); }
       else if (ex.id === "grip") { ns.grip += Math.ceil(ratio * 2); ns.strength += Math.ceil(ratio); }
       else { ns.agility += Math.ceil(ratio); ns.jump += Math.ceil(ratio); }
 
@@ -363,7 +355,7 @@ export default function FitnessRPG() {
               <div style={{ fontSize: "11px", fontWeight: 700, color: "#78716c", marginBottom: "8px", textAlign: "center" }}>[累計訓練紀錄]</div>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "5px" }}>
                 {Object.entries(gs.totalReps).map(([id, count]) => {
-                  const n = { squat: "深蹲", punch: "揮拳", tuck_jump: "縮腳跳", precision_jump: "精準跳", lateral_jump: "左右橫跳", grip: "捏握力器", wall_step: "踩牆", wall_run: "飛岩走壁", burpee: "波比跳", pushup: "伏地挺身", plank: "棒式", lunge: "弓箭步", high_knee: "高抬腿" }[id] || id;
+                  const n = { squat: "深蹲", punch: "揮拳", grip: "握力", tuck_jump: "縮腳跳", high_knee: "高抬腿", precision_jump: "精準跳", stair_jump: "跳階梯" }[id] || id;
                   return (<div key={id} style={{ padding: "7px", borderRadius: "7px", background: "rgba(255,255,255,0.02)", textAlign: "center" }}><div style={{ fontSize: "9px", color: "#78716c" }}>{n}</div><div style={{ fontFamily: "'Black Ops One', cursive", fontSize: "15px", color: "#f97316" }}>{count}</div></div>);
                 })}
               </div>
