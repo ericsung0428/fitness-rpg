@@ -296,7 +296,7 @@ export default function App(){
                 {canGo?<button onClick={()=>setRdClr(true)} style={{padding:"14px 36px",borderRadius:"14px",border:"2px solid rgba(239,68,68,0.5)",background:"linear-gradient(135deg,rgba(239,68,68,0.15),rgba(249,115,22,0.1))",color:"#f97316",fontWeight:900,fontSize:"17px",cursor:"pointer",fontFamily:"inherit",animation:"pulse 2s infinite,bGlow 2s infinite"}}>🔥 完成！下一關 🔥</button>
                 :<div style={{padding:"18px",borderRadius:"14px",background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.06)"}}>
                   <div style={{fontSize:"14px",fontWeight:700,color:"#4ade80",marginBottom:"6px"}}>✅ 今日任務已完成！</div>
-                  <div style={{fontSize:"12px",color:"#78716c"}}>下一關將在午夜 00:00 解鎖</div>
+                  <div style={{fontSize:"12px",color:"#78716c"}}>下一關將在04:00 解鎖</div>
                   <div style={{fontFamily:"'Black Ops One',cursive",fontSize:"22px",color:"#f97316",marginTop:"6px"}}>{midnightStr||getTimeToMidnight()}</div>
                 </div>}
               </div>);
