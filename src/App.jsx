@@ -112,13 +112,13 @@ export default function App(){
   const detData=cDet?CARD_POOL.find(c=>c.id===cDet.id):null;
 
   return(
-    <div style={{minHeight:"100vh",minHeight:"100dvh",background:"#080000",color:"#f0e6e6",fontFamily:"'Noto Sans TC',sans-serif",position:"relative",overflow:"hidden",WebkitTapHighlightColor:"transparent",overscrollBehavior:"none"}}>
+    <div style={{minHeight:"100vh",minHeight:"100dvh",background:"#080000",color:"#f0e6e6",fontFamily:"'Noto Sans TC',sans-serif",position:"relative",overflow:"hidden",overflowX:"hidden",width:"100%",WebkitTapHighlightColor:"transparent",overscrollBehavior:"none"}}>
       <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;700;900&family=Black+Ops+One&display=swap" rel="stylesheet"/>
       <style>{`
         *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-        html,body{overscroll-behavior:none;margin:0;padding:0}
-        input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
-        input[type=number]{-moz-appearance:textfield}
+        html,body{overscroll-behavior:none;margin:0;padding:0;overflow-x:hidden;width:100%}
+        input[type=number]{-webkit-appearance:none;-moz-appearance:textfield;appearance:none}
+        input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0;display:none}
         @keyframes fireRise{0%{transform:translateY(0) scale(1);opacity:var(--op)}60%{opacity:var(--op)}100%{transform:translateY(-100vh) scale(0.3);opacity:0}}
         @keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.06)}}
         @keyframes slideDown{from{transform:translateY(-120%);opacity:0}to{transform:translateY(0);opacity:1}}
@@ -206,7 +206,7 @@ export default function App(){
           </div>
         </div>
 
-        <div style={{padding:"0 14px"}}>
+        <div style={{padding:"0 14px",overflow:"hidden"}}>
           <div style={{textAlign:"center",fontSize:"11px",color:"#78716c",marginBottom:"10px"}}>第 {gs.round} 關　|　通關 {gs.cleared}</div>
 
           {/* XP */}
@@ -227,10 +227,10 @@ export default function App(){
           {vw==="train"&&<div>
             <div style={{display:"flex",justifyContent:"space-between",marginBottom:"10px"}}><span style={{fontSize:"13px",fontWeight:700,color:"#a8a29e"}}>[第 {gs.round} 關]</span><span style={{fontSize:"11px",color:"#78716c"}}>{exs.filter(e=>(gs.progress[e.id]||0)>=e.target).length}/{exs.length}</span></div>
             {exs.map((ex,i)=>{const d=gs.progress[ex.id]||0,p=Math.min((d/ex.target)*100,100),c=d>=ex.target;return(
-              <div key={ex.id+gs.round} style={{marginBottom:"10px",padding:"13px 15px",borderRadius:"14px",background:c?"linear-gradient(135deg,rgba(34,197,94,0.06),rgba(22,163,74,0.03))":"rgba(255,255,255,0.02)",border:`1px solid ${c?"rgba(34,197,94,0.3)":"rgba(255,255,255,0.04)"}`,animation:shkId===ex.id?"shake 0.4s ease":`fadeUp ${0.15+i*0.06}s ease-out`}}>
+              <div key={ex.id+gs.round} style={{marginBottom:"10px",padding:"13px 15px",borderRadius:"14px",background:c?"linear-gradient(135deg,rgba(34,197,94,0.06),rgba(22,163,74,0.03))":"rgba(255,255,255,0.02)",border:`1px solid ${c?"rgba(34,197,94,0.3)":"rgba(255,255,255,0.04)"}`,overflow:"hidden",animation:shkId===ex.id?"shake 0.4s ease":`fadeUp ${0.15+i*0.06}s ease-out`}}>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"7px"}}><div style={{display:"flex",alignItems:"center",gap:"7px"}}><span style={{fontSize:"20px"}}>{ex.icon}</span><span style={{fontSize:"15px",fontWeight:700,color:c?"#4ade80":"#e7e5e4"}}>{ex.name}</span>{c&&<span style={{fontSize:"11px"}}>✅</span>}</div><span style={{fontSize:"12px",color:c?"#4ade80":"#78716c",fontFamily:"'Black Ops One',cursive"}}>{d}/{ex.target}</span></div>
                 <div style={{height:"4px",borderRadius:"2px",marginBottom:"9px",background:"rgba(255,255,255,0.05)",overflow:"hidden"}}><div style={{height:"100%",borderRadius:"2px",width:`${p}%`,background:c?"linear-gradient(90deg,#22c55e,#4ade80)":"linear-gradient(90deg,#ef4444,#f97316)",transition:"width 0.4s"}}/></div>
-                {!c&&<div style={{display:"flex",gap:"7px"}}><input type="number" inputMode="numeric" pattern="[0-9]*" placeholder="輸入次數" value={inp[ex.id]||""} onChange={e=>setInp(q=>({...q,[ex.id]:e.target.value}))} onKeyDown={e=>e.key==="Enter"&&doEx(ex)} style={{flex:1,padding:"9px 11px",borderRadius:"9px",border:"1px solid rgba(255,255,255,0.08)",background:"rgba(0,0,0,0.4)",color:"#e7e5e4",fontSize:"16px",fontFamily:"inherit",outline:"none"}}/><button onClick={()=>doEx(ex)} style={{padding:"9px 16px",borderRadius:"9px",border:"none",background:"linear-gradient(135deg,#dc2626,#b91c1c)",color:"#fff",fontWeight:700,fontSize:"13px",cursor:"pointer",fontFamily:"inherit"}}>確認</button></div>}
+                {!c&&<div style={{display:"flex",gap:"7px",overflow:"hidden",width:"100%"}}><input type="number" inputMode="numeric" pattern="[0-9]*" placeholder="輸入次數" value={inp[ex.id]||""} onChange={e=>setInp(q=>({...q,[ex.id]:e.target.value}))} onKeyDown={e=>e.key==="Enter"&&doEx(ex)} style={{flex:"1 1 0%",minWidth:0,width:0,padding:"9px 11px",borderRadius:"9px",border:"1px solid rgba(255,255,255,0.08)",background:"rgba(0,0,0,0.4)",color:"#e7e5e4",fontSize:"16px",fontFamily:"inherit",outline:"none",WebkitAppearance:"none",appearance:"none"}}/><button onClick={()=>doEx(ex)} style={{flexShrink:0,padding:"9px 16px",borderRadius:"9px",border:"none",background:"linear-gradient(135deg,#dc2626,#b91c1c)",color:"#fff",fontWeight:700,fontSize:"13px",cursor:"pointer",fontFamily:"inherit"}}>確認</button></div>}
               </div>);})}
             {allDone&&!rdClr&&<div style={{textAlign:"center",marginTop:"14px",animation:"fadeUp 0.4s ease-out"}}><button onClick={()=>setRdClr(true)} style={{padding:"14px 36px",borderRadius:"14px",border:"2px solid rgba(239,68,68,0.5)",background:"linear-gradient(135deg,rgba(239,68,68,0.15),rgba(249,115,22,0.1))",color:"#f97316",fontWeight:900,fontSize:"17px",cursor:"pointer",fontFamily:"inherit",animation:"pulse 2s infinite,bGlow 2s infinite"}}>🔥 完成！下一關 🔥</button></div>}
             <div style={{textAlign:"center",marginTop:"18px"}}><button onClick={resetAll} style={{padding:"5px 18px",borderRadius:"8px",border:"1px solid rgba(239,68,68,0.15)",background:"rgba(239,68,68,0.03)",color:"#78716c",fontSize:"10px",cursor:"pointer",fontFamily:"inherit"}}>重置</button></div>
