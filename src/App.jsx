@@ -1,6 +1,8 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 
-/* ═══ CARD DATA ═══ */
+/* ═══════════════════════════════════════
+   CARD DATA
+   ═══════════════════════════════════════ */
 const CARD_POOL = [
   { id:"c01",name:"新手冒險者",rarity:"R",img:"/cards/card_01.jpg",base:{atk:28,def:38,spd:35,hp:50} },
   { id:"c04",name:"宅邸守衛",rarity:"R",img:"/cards/card_04.jpg",base:{atk:30,def:42,spd:28,hp:52} },
@@ -20,6 +22,77 @@ function pullOne(){const r=Math.random();const rar=r<0.03?"SSR":r<0.20?"SR":"R";
 function pullTen(){const r=Array.from({length:10},()=>pullOne());if(!r.some(c=>c.rarity!=="R")){const sr=CARD_POOL.filter(c=>c.rarity==="SR"||c.rarity==="SSR");r[9]=sr[Math.floor(Math.random()*sr.length)];}return r;}
 function cStats(c,lv){const rates={R:0.06,SR:0.12,SSR:0.20};const m=1+(lv-1)*(rates[c.rarity]||0.12);return{atk:Math.floor(c.base.atk*m),def:Math.floor(c.base.def*m),spd:Math.floor(c.base.spd*m),hp:Math.floor(c.base.hp*m)};}
 
+/* ═══════════════════════════════════════
+   BOSS DATA — 10 Bosses, infinite cycle
+   ═══════════════════════════════════════ */
+const BOSSES = [
+  { name:"史萊姆王",emoji:"👑🟢",base:{atk:25,def:15,spd:20,hp:120},desc:"看似弱小卻異常黏人" },
+  { name:"骷髏騎士",emoji:"💀⚔️",base:{atk:35,def:30,spd:25,hp:180},desc:"不死軍團的先鋒" },
+  { name:"暗影狼王",emoji:"🐺🌑",base:{atk:45,def:22,spd:50,hp:160},desc:"黑夜中的獵手" },
+  { name:"火焰巨人",emoji:"🔥👹",base:{atk:55,def:40,spd:15,hp:280},desc:"燃燒一切的暴怒之軀" },
+  { name:"冰霜女巫",emoji:"❄️🧙‍♀️",base:{atk:42,def:35,spd:38,hp:220},desc:"寒冰封印萬物" },
+  { name:"雷電飛龍",emoji:"⚡🐉",base:{atk:60,def:45,spd:55,hp:300},desc:"天空的霸主" },
+  { name:"深淵領主",emoji:"👿🕳️",base:{atk:65,def:50,spd:30,hp:380},desc:"深淵的統治者" },
+  { name:"血月魔狼",emoji:"🌕🐺",base:{atk:70,def:38,spd:60,hp:340},desc:"滿月之夜的恐懼" },
+  { name:"墮落天使",emoji:"😈👼",base:{atk:75,def:55,spd:45,hp:420},desc:"光與暗的化身" },
+  { name:"終焉之王",emoji:"💀👑",base:{atk:85,def:65,spd:50,hp:500},desc:"一切的終結" },
+];
+
+function getBossStats(bossRound){
+  const idx=(bossRound-1)%10;
+  const cycle=Math.ceil(bossRound/10);
+  const b=BOSSES[idx];
+  const mult=1+(cycle-1)*0.6;
+  return{
+    ...b,idx,cycle,
+    stats:{atk:Math.floor(b.base.atk*mult),def:Math.floor(b.base.def*mult),spd:Math.floor(b.base.spd*mult),hp:Math.floor(b.base.hp*mult)},
+  };
+}
+
+/* ═══ BATTLE ENGINE ═══ */
+function simulateBattle(cardTeam, bossStats){
+  // cardTeam: [{card, stats:{atk,def,spd,hp}}]
+  // returns array of turns: {attacker, target, dmg, bossHp, teamHp:[...]}
+  const team=cardTeam.map(c=>({...c,curHp:c.stats.hp,maxHp:c.stats.hp,alive:true}));
+  let bossHp=bossStats.hp;
+  const bossMaxHp=bossStats.hp;
+  const log=[];
+  let turn=0;
+  const maxTurns=200;
+
+  while(bossHp>0&&team.some(c=>c.alive)&&turn<maxTurns){
+    turn++;
+    // Build turn order: all alive cards + boss, sorted by speed desc
+    const actors=[];
+    team.forEach((c,i)=>{if(c.alive)actors.push({type:"card",idx:i,spd:c.stats.spd});});
+    actors.push({type:"boss",spd:bossStats.spd});
+    actors.sort((a,b)=>b.spd-a.spd);
+
+    for(const actor of actors){
+      if(bossHp<=0||!team.some(c=>c.alive))break;
+
+      if(actor.type==="card"){
+        const c=team[actor.idx];
+        if(!c.alive)continue;
+        const dmg=Math.max(1,Math.floor(c.stats.atk-(bossStats.def*0.3))+Math.floor(Math.random()*6)-3);
+        bossHp=Math.max(0,bossHp-dmg);
+        log.push({type:"card_atk",cardIdx:actor.idx,cardName:c.card.name,dmg,bossHp,bossMaxHp,teamHp:team.map(t=>({cur:t.curHp,max:t.maxHp,alive:t.alive}))});
+      } else {
+        // Boss attacks random alive card
+        const alive=team.map((c,i)=>({c,i})).filter(x=>x.c.alive);
+        if(alive.length===0)break;
+        const target=alive[Math.floor(Math.random()*alive.length)];
+        const dmg=Math.max(1,Math.floor(bossStats.atk-(target.c.stats.def*0.3))+Math.floor(Math.random()*8)-4);
+        target.c.curHp=Math.max(0,target.c.curHp-dmg);
+        if(target.c.curHp<=0)target.c.alive=false;
+        log.push({type:"boss_atk",targetIdx:target.i,targetName:target.c.card.name,dmg,bossHp,bossMaxHp,teamHp:team.map(t=>({cur:t.curHp,max:t.maxHp,alive:t.alive}))});
+      }
+    }
+  }
+  const win=bossHp<=0;
+  return{log,win,finalBossHp:bossHp,finalTeam:team};
+}
+
 /* ═══ EXERCISES & SKILLS ═══ */
 const ALL_EX=[{id:"squat",name:"深蹲",icon:"🔥",target:100},{id:"punch",name:"揮拳",icon:"👊",target:100},{id:"grip",name:"握力",icon:"✊",target:100},{id:"tuck_jump",name:"縮腳跳",icon:"🦵",target:50},{id:"high_knee",name:"高抬腿",icon:"🦿",target:100},{id:"precision_jump",name:"精準跳",icon:"🎯",target:50},{id:"stair_jump",name:"跳階梯",icon:"🪜",target:50}];
 const SKILLS=[{id:"king_wrath",name:"王之怒",desc:"被動技能，憤怒時攻擊力+3，同時興奮值提升",lv:5,type:"passive",icon:"🔥"},{id:"iron_legs",name:"鋼鐵之腿",desc:"下肢力量大幅強化，跳躍力永久+10",lv:10,type:"passive",icon:"🦵"},{id:"dominator_hand",name:"支配者之手",desc:"擁有很強的握力，能通過握力鎖死敵人手腕",lv:15,type:"active",icon:"✊"},{id:"shadow_step",name:"幻影步",desc:"移動速度大幅提升，敵人難以捕捉你的身影",lv:25,type:"active",icon:"👻"},{id:"berserker",name:"狂戰士",desc:"HP低於30%時，所有能力值翻倍",lv:35,type:"passive",icon:"⚡"},{id:"titan_body",name:"巨人之軀",desc:"身體硬度超越鋼鐵，物理攻擊幾乎無效",lv:50,type:"passive",icon:"🛡️"},{id:"dragon_fist",name:"龍拳",desc:"將全身力量集中在拳頭，一擊粉碎一切",lv:65,type:"active",icon:"🐉"},{id:"god_speed",name:"神速",desc:"速度突破人類極限，世界在你眼中靜止",lv:80,type:"active",icon:"⚡"},{id:"awakening",name:"覺醒",desc:"超越人類的終極形態，所有能力值無上限突破",lv:100,type:"passive",icon:"👑"}];
@@ -31,66 +104,38 @@ function getRank(l){if(l>=100)return{t:"武神",c:"#ffd700"};if(l>=80)return{t:"
 
 /* ═══ SAVE ═══ */
 const SK="fitness_rpg_v2";
-const DEF={level:1,xp:0,gold:0,round:1,hp:100,maxHp:100,curEx:null,progress:{},totalReps:{},stats:{strength:5,stamina:5,agility:5,jump:5,grip:3},skills:[],cleared:0,cards:{},completedAt:null};
-function load(){try{const s=localStorage.getItem(SK);if(s){const p=JSON.parse(s);return{...DEF,...p,cards:p.cards||{},completedAt:p.completedAt||null};}}catch(e){}return{...DEF};}
-function save(s){try{localStorage.setItem(SK,JSON.stringify(s));}catch(e){}}
+const DEF={level:1,xp:0,gold:0,round:1,hp:100,maxHp:100,curEx:null,progress:{},totalReps:{},stats:{strength:5,stamina:5,agility:5,jump:5,grip:3},skills:[],cleared:0,cards:{},completedAt:null,bossRound:1};
+function load(){try{const s=localStorage.getItem(SK);if(s){const p=JSON.parse(s);return{...DEF,...p,cards:p.cards||{},completedAt:p.completedAt||null,bossRound:p.bossRound||1};}}catch(e){}return{...DEF};}
+function sv(s){try{localStorage.setItem(SK,JSON.stringify(s));}catch(e){}}
 
-function canNextRound(completedAt) {
-  if(!completedAt) return false;
-  const completed = new Date(completedAt);
-  const now = new Date();
-  
-  // 設定重置目標時間
-  const resetTime = new Date(completed);
-  resetTime.setHours(4, 0, 0, 0); // 設為當天的 04:00
-
-  // 如果完成時間已經晚於當天的 04:00，那重置點就是「隔天」的 04:00
-  if (completed.getHours() >= 4) {
-    resetTime.setDate(resetTime.getDate() + 1);
-  }
-
-  return now >= resetTime;
-}
-
-function getTimeToMidnight(){
-  const now = new Date();
-  const target = new Date(now);
-  target.setHours(4, 0, 0, 0);
-
-  // 如果現在已經過凌晨 4 點了，目標就是明天的凌晨 4 點
-  if (now.getHours() >= 4) {
-    target.setDate(target.getDate() + 1);
-  }
-
-  const diff = target - now;
-  const h = Math.floor(diff / 3600000);
-  const m = Math.floor((diff % 3600000) / 60000);
-  const s = Math.floor((diff % 60000) / 1000);
-  return `${h}時${m}分${s}秒`;
-}
-
-function calcSkipRewards(fromRound,toRound){
-  let xp=0,gold=0;
-  for(let r=fromRound;r<toRound;r++){
-    const exs=shuf(ALL_EX,r*7+13).slice(0,4);
-    exs.forEach(ex=>{xp+=Math.floor(ex.target*2);gold+=Math.floor(ex.target*0.3)+15;});
-  }
-  return{xp,gold};
-}
+function canNextRound(ca){if(!ca)return false;const c=new Date(ca),n=new Date(),r=new Date(c);r.setHours(4,0,0,0);if(c.getHours()>=4)r.setDate(r.getDate()+1);return n>=r;}
+function getTimeToReset(){const n=new Date(),t=new Date(n);t.setHours(4,0,0,0);if(n.getHours()>=4)t.setDate(t.getDate()+1);const d=t-n;return`${Math.floor(d/3600000)}時${Math.floor((d%3600000)/60000)}分${Math.floor((d%60000)/1000)}秒`;}
+function calcSkipRewards(f,t){let x=0,g=0;for(let r=f;r<t;r++){shuf(ALL_EX,r*7+13).slice(0,4).forEach(e=>{x+=Math.floor(e.target*2);g+=Math.floor(e.target*0.3)+15;});}return{xp:x,gold:g};}
 
 /* ═══ CARD IMAGE ═══ */
-function CImg({card,sz="full",lvl}){
+function CImg({card,sz="full",lvl,sel,dim}){
   const[err,setErr]=useState(false);const rc=RC[card.rarity];
-  const w=sz==="sm"?76:sz==="md"?110:150,h=Math.floor(w*4/3);
-  return(<div style={{width:w,height:h,borderRadius:sz==="sm"?8:12,overflow:"hidden",position:"relative",border:`2.5px solid ${rc.border}`,boxShadow:`0 0 ${sz==="sm"?8:14}px ${rc.glow}`,flexShrink:0}}>
+  const w=sz==="xs"?56:sz==="sm"?76:sz==="md"?110:150,h=Math.floor(w*4/3);
+  return(<div style={{width:w,height:h,borderRadius:sz==="xs"?6:sz==="sm"?8:12,overflow:"hidden",position:"relative",border:`2.5px solid ${sel?"#4ade80":rc.border}`,boxShadow:sel?`0 0 16px rgba(34,197,94,0.5)`:`0 0 ${sz==="sm"?8:14}px ${rc.glow}`,flexShrink:0,opacity:dim?0.35:1,transition:"all 0.2s"}}>
     {!err?<img src={card.img} alt="" style={{width:"100%",height:"100%",objectFit:"cover",display:"block"}} onError={()=>setErr(true)}/>:
     <div style={{width:"100%",height:"100%",background:rc.bg,display:"flex",alignItems:"center",justifyContent:"center",fontSize:w*0.3,color:"rgba(255,255,255,0.6)",fontWeight:900}}>{card.name[0]}</div>}
-    <div style={{position:"absolute",top:3,left:3,padding:"1px 6px",borderRadius:4,background:rc.border,color:"#fff",fontSize:sz==="sm"?8:11,fontWeight:900,letterSpacing:1}}>{card.rarity}</div>
-    {lvl&&<div style={{position:"absolute",bottom:3,right:3,padding:"1px 6px",borderRadius:4,background:"rgba(0,0,0,0.75)",color:"#fbbf24",fontSize:sz==="sm"?8:10,fontWeight:700}}>Lv.{lvl}</div>}
+    <div style={{position:"absolute",top:2,left:2,padding:"0px 4px",borderRadius:3,background:rc.border,color:"#fff",fontSize:sz==="xs"?6:sz==="sm"?8:11,fontWeight:900}}>{card.rarity}</div>
+    {lvl&&<div style={{position:"absolute",bottom:2,right:2,padding:"0px 4px",borderRadius:3,background:"rgba(0,0,0,0.75)",color:"#fbbf24",fontSize:sz==="xs"?6:sz==="sm"?8:10,fontWeight:700}}>Lv.{lvl}</div>}
   </div>);
 }
 
-/* ═══ MAIN ═══ */
+/* ═══ HP BAR COMPONENT ═══ */
+function HpBar({cur,max,color="#22c55e",h=6}){
+  const pct=max>0?(cur/max)*100:0;
+  const c2=pct>60?color:pct>30?"#f59e0b":"#ef4444";
+  return(<div style={{width:"100%",height:h,borderRadius:h/2,background:"rgba(255,255,255,0.08)",overflow:"hidden"}}>
+    <div style={{height:"100%",borderRadius:h/2,width:`${Math.max(pct,0)}%`,background:c2,transition:"width 0.3s",boxShadow:`0 0 6px ${c2}44`}}/>
+  </div>);
+}
+
+/* ═══════════════════════════════════════
+   MAIN APP
+   ═══════════════════════════════════════ */
 export default function App(){
   const[gs,setGs]=useState(()=>{const d=load();if(!d.curEx)d.curEx=getEx(d.round);return d;});
   const[vw,setVw]=useState("train");
@@ -109,20 +154,29 @@ export default function App(){
   const[showSecret,setShowSecret]=useState(false);
   const[skipTo,setSkipTo]=useState("");
   const[midnightStr,setMidnightStr]=useState("");
+  // Battle states
+  const[btlPick,setBtlPick]=useState([]);// selected card ids for battle
+  const[btlPhase,setBtlPhase]=useState("prep");// prep|fighting|result
+  const[btlLog,setBtlLog]=useState([]);
+  const[btlStep,setBtlStep]=useState(0);
+  const[btlResult,setBtlResult]=useState(null);
+  const[btlCanSkip,setBtlCanSkip]=useState(false);
+  const btlTimer=useRef(null);
+  const skipTimerRef=useRef(null);
+
   const nr=useRef(null);
   const tapTimer=useRef(null);
 
-  useEffect(()=>{save(gs);},[gs]);
+  useEffect(()=>{sv(gs);},[gs]);
+  useEffect(()=>{if(!gs.completedAt||canNextRound(gs.completedAt))return;const iv=setInterval(()=>setMidnightStr(getTimeToReset()),1000);return()=>clearInterval(iv);},[gs.completedAt]);
 
-  // Midnight countdown timer
-  useEffect(()=>{
-    if(!gs.completedAt||canNextRound(gs.completedAt))return;
-    const iv=setInterval(()=>setMidnightStr(getTimeToMidnight()),1000);
-    return()=>clearInterval(iv);
-  },[gs.completedAt]);
+  // Cleanup battle timer
+  useEffect(()=>()=>{if(btlTimer.current)clearInterval(btlTimer.current);if(skipTimerRef.current)clearTimeout(skipTimerRef.current);},[]);
 
   const xpN=xpFor(gs.level+1),xp0=xpFor(gs.level),xpP=xpN>xp0?((gs.xp-xp0)/(xpN-xp0))*100:100;
   const rank=getRank(gs.level),exs=gs.curEx||getEx(gs.round),allDone=exs.every(e=>(gs.progress[e.id]||0)>=e.target);
+  const boss=getBossStats(gs.bossRound);
+  const ownedCards=Object.keys(gs.cards);
 
   function noti(t,ty="info"){if(nr.current)clearTimeout(nr.current);setNotif({text:t,type:ty});nr.current=setTimeout(()=>setNotif(null),3000);}
 
@@ -145,8 +199,9 @@ export default function App(){
     setInp(p=>({...p,[ex.id]:""}));setGP(true);setTimeout(()=>setGP(false),500);
     noti(`+${xpG} XP　+${gG+bonus} 🪙${just?"　🔥 完成！":""}`,just?"success":"info");
   }
+
   function nextRd(){
-    if(gs.completedAt&&!canNextRound(gs.completedAt)){noti("需等到午夜 12:00 才能進入下一關！");return;}
+    if(gs.completedAt&&!canNextRound(gs.completedAt)){noti("需等到凌晨 04:00 才能進入下一關！");return;}
     setGs(p=>{const n=p.round+1;return{...p,round:n,progress:{},curEx:getEx(n),cleared:p.cleared+1,completedAt:null};});setRdClr(false);noti("🔥 新挑戰開始！","success");
   }
 
@@ -158,16 +213,76 @@ export default function App(){
 
   function upCard(cid,max){
     setGs(p=>{const cd=p.cards[cid];if(!cd||cd.copies<1)return p;
-      if(max){return{...p,cards:{...p.cards,[cid]:{level:cd.level+cd.copies,copies:0}}};}
+      if(max)return{...p,cards:{...p.cards,[cid]:{level:cd.level+cd.copies,copies:0}}};
       return{...p,cards:{...p.cards,[cid]:{level:cd.level+1,copies:cd.copies-1}}};
     });noti("🔥 升級成功！","success");
   }
 
   function resetAll(){if(window.confirm("⚠️ 確定重置？")){localStorage.removeItem(SK);setGs({...DEF,curEx:getEx(1)});setInp({});}}
 
+  /* ═══ BATTLE FUNCTIONS ═══ */
+  function toggleBtlCard(cid){
+    setBtlPick(p=>p.includes(cid)?p.filter(x=>x!==cid):p.length<3?[...p,cid]:p);
+  }
+
+  function startBattle(){
+    if(btlPick.length===0){noti("請至少選擇 1 張卡片！");return;}
+    const team=btlPick.map(cid=>{
+      const card=CARD_POOL.find(c=>c.id===cid);
+      const stats=cStats(card,gs.cards[cid].level);
+      return{card,stats};
+    });
+    const result=simulateBattle(team,boss.stats);
+    setBtlLog(result.log);
+    setBtlResult(result);
+    setBtlStep(0);
+    setBtlPhase("fighting");
+    setBtlCanSkip(false);
+
+    // Auto-advance turns
+    let step=0;
+    btlTimer.current=setInterval(()=>{
+      step++;
+      if(step>=result.log.length){
+        clearInterval(btlTimer.current);
+        setBtlStep(result.log.length-1);
+        setTimeout(()=>setBtlPhase("result"),600);
+        return;
+      }
+      setBtlStep(step);
+    },500);
+
+    // Show skip after 3 seconds
+    skipTimerRef.current=setTimeout(()=>setBtlCanSkip(true),3000);
+  }
+
+  function skipBattle(){
+    if(btlTimer.current)clearInterval(btlTimer.current);
+    if(skipTimerRef.current)clearTimeout(skipTimerRef.current);
+    if(btlLog.length>0)setBtlStep(btlLog.length-1);
+    setTimeout(()=>setBtlPhase("result"),200);
+  }
+
+  function claimBattleReward(){
+    if(!btlResult)return;
+    if(btlResult.win){
+      const goldR=20+gs.bossRound*5;
+      const xpR=50+gs.bossRound*10;
+      setGs(p=>{
+        let nX=p.xp+xpR,nL=p.level,nM=p.maxHp,lu=false;
+        while(nL<100&&nX>=xpFor(nL+1)){nL++;nM+=5;lu=true;}
+        if(lu)setTimeout(()=>{setLvUpPop(true);setTimeout(()=>setLvUpPop(false),2500);},200);
+        return{...p,gold:p.gold+goldR,xp:nX,level:nL,maxHp:nM,bossRound:p.bossRound+1};
+      });
+      noti(`🏆 +${xpR} XP +${goldR} 🪙`,"success");
+    }
+    setBtlPhase("prep");setBtlPick([]);setBtlLog([]);setBtlStep(0);setBtlResult(null);setBtlCanSkip(false);
+  }
+
   const hpP=(gs.hp/gs.maxHp)*100,owned=Object.keys(gs.cards).length;
-  // Refresh card detail after upgrade
   const detData=cDet?CARD_POOL.find(c=>c.id===cDet.id):null;
+  // Current battle display state
+  const curLog=btlLog[btlStep]||null;
 
   return(
     <div style={{minHeight:"100vh",minHeight:"100dvh",background:"#080000",color:"#f0e6e6",fontFamily:"'Noto Sans TC',sans-serif",position:"relative",overflow:"hidden",overflowX:"hidden",width:"100%",WebkitTapHighlightColor:"transparent",overscrollBehavior:"none"}}>
@@ -188,6 +303,9 @@ export default function App(){
         @keyframes skA{0%{transform:scale(0) rotate(-180deg);opacity:0}60%{transform:scale(1.2) rotate(8deg);opacity:1}100%{transform:scale(1) rotate(0);opacity:1}}
         @keyframes bGlow{0%,100%{box-shadow:0 0 15px rgba(239,68,68,0.3)}50%{box-shadow:0 0 30px rgba(249,115,22,0.5)}}
         @keyframes cFlip{0%{transform:rotateY(180deg) scale(0.5);opacity:0}60%{transform:rotateY(0) scale(1.1);opacity:1}100%{transform:rotateY(0) scale(1);opacity:1}}
+        @keyframes hitShake{0%,100%{transform:translateX(0)}25%{transform:translateX(-6px)}50%{transform:translateX(6px)}75%{transform:translateX(-3px)}}
+        @keyframes dmgFloat{0%{transform:translateY(0);opacity:1}100%{transform:translateY(-30px);opacity:0}}
+        @keyframes slashIn{0%{transform:scaleX(0);opacity:0}50%{transform:scaleX(1.2);opacity:1}100%{transform:scaleX(1);opacity:0}}
       `}</style>
 
       {/* Fire */}
@@ -195,7 +313,7 @@ export default function App(){
         {Array.from({length:15},(_,i)=>(<div key={i} style={{position:"absolute",bottom:"-10px",left:`${(i*6.8)%100}%`,width:`${2+(i%4)*1.5}px`,height:`${2+(i%4)*1.5}px`,borderRadius:"50%",background:`radial-gradient(circle,${i%3===0?"#ef4444":i%3===1?"#f97316":"#fbbf24"},transparent)`,"--op":0.3+(i%5)*0.12,opacity:0.3+(i%5)*0.12,animation:`fireRise ${3+(i%5)*1.2}s ${(i*0.4)%5}s linear infinite`}}/>))}
       </div>
 
-      {/* ═══ OVERLAYS ═══ */}
+      {/* ═══ OVERLAYS (level up, skill, round clear — unchanged) ═══ */}
       {lvUpPop&&<div style={{position:"fixed",inset:0,zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(0,0,0,0.8)",backdropFilter:"blur(10px)"}}><div style={{animation:"lvlA 0.6s ease-out",textAlign:"center",padding:"44px 52px",background:"linear-gradient(135deg,rgba(239,68,68,0.12),rgba(249,115,22,0.08))",border:"2px solid rgba(239,68,68,0.5)",borderRadius:"24px"}}><div style={{fontSize:"17px",color:"#f97316",letterSpacing:"6px"}}>⚔️ LEVEL UP ⚔️</div><div style={{fontFamily:"'Black Ops One',cursive",fontSize:"72px",background:"linear-gradient(135deg,#ef4444,#f97316,#fbbf24,#ef4444)",backgroundSize:"300% 300%",animation:"burnText 3s ease infinite",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"}}>Lv.{gs.level}</div><div style={{color:"#fca5a5",marginTop:"6px",fontSize:"13px"}}>{rank.t}</div></div></div>}
       {skPop&&<div style={{position:"fixed",inset:0,zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(0,0,0,0.85)",backdropFilter:"blur(10px)"}} onClick={()=>setSkPop(null)}><div style={{animation:"skA 0.7s ease-out",textAlign:"center",padding:"36px 40px",background:"linear-gradient(135deg,rgba(239,68,68,0.15),rgba(249,115,22,0.1))",border:"2px solid rgba(249,115,22,0.5)",borderRadius:"24px",maxWidth:"300px"}}><div style={{fontSize:"14px",color:"#f97316",letterSpacing:"8px",marginBottom:"14px"}}>《新技能》</div><div style={{fontSize:"56px",marginBottom:"10px"}}>{skPop.icon}</div><div style={{fontSize:"24px",fontWeight:900,color:"#fbbf24",marginBottom:"10px"}}>[{skPop.name}]</div><div style={{fontSize:"13px",color:"#fca5a5",lineHeight:1.8}}>{skPop.desc}</div><div style={{marginTop:"14px",color:"#78716c",fontSize:"11px"}}>點擊關閉</div></div></div>}
       {rdClr&&<div style={{position:"fixed",inset:0,zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(0,0,0,0.85)",backdropFilter:"blur(10px)"}}><div style={{animation:"lvlA 0.5s ease-out",textAlign:"center",padding:"36px 44px",background:"linear-gradient(135deg,rgba(34,197,94,0.12),rgba(22,163,74,0.08))",border:"2px solid rgba(34,197,94,0.5)",borderRadius:"24px"}}><div style={{fontSize:"44px"}}>🔥</div><div style={{fontSize:"22px",fontWeight:900,color:"#4ade80",margin:"6px 0"}}>關卡完成！</div><div style={{color:"#86efac",fontSize:"14px",marginBottom:"18px"}}>第 {gs.round} 關通過</div><button onClick={nextRd} style={{padding:"12px 36px",borderRadius:"14px",border:"2px solid rgba(34,197,94,0.6)",background:"linear-gradient(135deg,rgba(34,197,94,0.2),rgba(22,163,74,0.15))",color:"#4ade80",fontWeight:900,fontSize:"17px",cursor:"pointer",fontFamily:"inherit",animation:"pulse 2s infinite"}}>⚔️ 下一關</button></div></div>}
@@ -213,16 +331,14 @@ export default function App(){
           <button onClick={()=>doPull(1)} disabled={pulling||gs.gold<1} style={{flex:1,padding:"13px",borderRadius:"14px",border:"2px solid rgba(251,191,36,0.4)",background:"linear-gradient(135deg,rgba(251,191,36,0.1),rgba(249,115,22,0.06))",color:"#fbbf24",fontWeight:900,fontSize:"16px",cursor:"pointer",fontFamily:"inherit",opacity:gs.gold<1?0.4:1}}>{pulling?"...":"單抽 🪙1"}</button>
           <button onClick={()=>doPull(10)} disabled={pulling||gs.gold<10} style={{flex:1,padding:"13px",borderRadius:"14px",border:"2px solid rgba(239,68,68,0.4)",background:"linear-gradient(135deg,rgba(239,68,68,0.12),rgba(249,115,22,0.08))",color:"#f97316",fontWeight:900,fontSize:"16px",cursor:"pointer",fontFamily:"inherit",opacity:gs.gold<10?0.4:1}}>{pulling?"...":"十抽 🪙10"}</button>
         </div>
-        <div style={{fontSize:"12px",fontWeight:700,color:"#a8a29e",marginBottom:"8px"}}>[卡池一覽]</div>
         {["SSR","SR","R"].map(r=>(<div key={r} style={{marginBottom:"10px"}}><div style={{fontSize:"10px",fontWeight:700,color:RC[r].color,marginBottom:"4px"}}>{r}</div><div style={{display:"flex",gap:"6px",overflowX:"auto",paddingBottom:"4px",WebkitOverflowScrolling:"touch"}}>{CARD_POOL.filter(c=>c.rarity===r).map(c=>(<div key={c.id} style={{textAlign:"center",flexShrink:0}}><CImg card={c} sz="sm"/><div style={{fontSize:"9px",color:"#a8a29e",marginTop:"3px"}}>{c.name}</div></div>))}</div></div>))}
       </div></div>}
 
-      {/* ═══ PULL RESULT ═══ */}
+      {/* PULL RESULT */}
       {pullRes&&<div style={{position:"fixed",inset:0,zIndex:260,background:"rgba(0,0,0,0.95)",backdropFilter:"blur(12px)",overflow:"auto",WebkitOverflowScrolling:"touch"}}><div style={{maxWidth:460,margin:"0 auto",padding:"54px 16px 30px",textAlign:"center"}}>
         <div style={{fontSize:"16px",fontWeight:900,color:"#fbbf24",letterSpacing:"4px",marginBottom:"18px"}}>🎊 抽獎結果 🎊</div>
         <div style={{display:"flex",flexWrap:"wrap",justifyContent:"center",gap:"8px",marginBottom:"20px"}}>
-          {pullRes.map((c,i)=>{const isDupe=gs.cards[c.id]&&gs.cards[c.id].level>=1&&(gs.cards[c.id].copies>0||(pullRes.slice(0,i).some(p=>p.id===c.id)));
-            return(<div key={i} style={{animation:`cFlip 0.5s ${i*0.1}s ease-out both`,textAlign:"center"}}><CImg card={c} sz="md"/><div style={{fontSize:"10px",color:RC[c.rarity].color,marginTop:"3px",fontWeight:700}}>{c.name}</div>{isDupe&&<div style={{fontSize:"9px",color:"#fbbf24"}}>+1 {c.name}碎片</div>}</div>);})}
+          {pullRes.map((c,i)=>{const isDupe=gs.cards[c.id]&&gs.cards[c.id].copies>0;return(<div key={i} style={{animation:`cFlip 0.5s ${i*0.1}s ease-out both`,textAlign:"center"}}><CImg card={c} sz="md"/><div style={{fontSize:"10px",color:RC[c.rarity].color,marginTop:"3px",fontWeight:700}}>{c.name}</div>{isDupe&&<div style={{fontSize:"9px",color:"#fbbf24"}}>+1 碎片</div>}</div>);})}
         </div>
         <div style={{display:"flex",gap:"10px",justifyContent:"center"}}>
           <button onClick={()=>setPullRes(null)} style={{padding:"10px 28px",borderRadius:"12px",border:"1px solid rgba(255,255,255,0.1)",background:"rgba(255,255,255,0.05)",color:"#a8a29e",fontWeight:700,fontSize:"14px",cursor:"pointer",fontFamily:"inherit"}}>繼續抽</button>
@@ -230,21 +346,19 @@ export default function App(){
         </div>
       </div></div>}
 
-      {/* ═══ CARD DETAIL + UPGRADE ═══ */}
+      {/* CARD DETAIL */}
       {detData&&<div style={{position:"fixed",inset:0,zIndex:250,background:"rgba(0,0,0,0.92)",backdropFilter:"blur(12px)",display:"flex",alignItems:"center",justifyContent:"center"}} onClick={()=>setCDet(null)}>
         <div onClick={e=>e.stopPropagation()} style={{animation:"lvlA 0.4s ease-out",textAlign:"center",padding:"24px 28px",background:"linear-gradient(135deg,rgba(20,10,10,0.95),rgba(30,15,15,0.95))",border:`2px solid ${RC[detData.rarity].border}`,borderRadius:"24px",maxWidth:"300px",width:"90%",boxShadow:`0 0 40px ${RC[detData.rarity].glow}`}}>
           <CImg card={detData} sz="full" lvl={gs.cards[detData.id]?.level}/>
           <div style={{marginTop:"10px",fontSize:"20px",fontWeight:900,color:RC[detData.rarity].color}}>{detData.name}</div>
           <div style={{fontSize:"12px",color:RC[detData.rarity].color,marginTop:"2px"}}>{detData.rarity}　Lv.{gs.cards[detData.id]?.level||1}</div>
-          <div style={{fontSize:"11px",color:"#78716c",marginTop:"2px"}}>{detData.name}碎片：{gs.cards[detData.id]?.copies||0} 個</div>
+          <div style={{fontSize:"11px",color:"#78716c",marginTop:"2px"}}>{detData.name}碎片：{gs.cards[detData.id]?.copies||0}</div>
           {gs.cards[detData.id]&&(()=>{const st=cStats(detData,gs.cards[detData.id].level);return(<div style={{marginTop:"10px",display:"grid",gridTemplateColumns:"1fr 1fr",gap:"5px"}}>{[{k:"atk",l:"攻擊",c:"#ef4444"},{k:"def",l:"防禦",c:"#3b82f6"},{k:"spd",l:"速度",c:"#22c55e"},{k:"hp",l:"血量",c:"#f59e0b"}].map(s=>(<div key={s.k} style={{padding:"5px",borderRadius:"7px",background:"rgba(255,255,255,0.03)"}}><div style={{fontSize:"9px",color:"#78716c"}}>{s.l}</div><div style={{fontFamily:"'Black Ops One',cursive",fontSize:"17px",color:s.c}}>{st[s.k]}</div></div>))}</div>);})()}
-          {gs.cards[detData.id]&&gs.cards[detData.id].copies>=1&&(
-            <div style={{marginTop:"12px",display:"flex",gap:"8px"}}>
-              <button onClick={()=>upCard(detData.id,false)} style={{flex:1,padding:"10px",borderRadius:"12px",border:"2px solid rgba(34,197,94,0.5)",background:"linear-gradient(135deg,rgba(34,197,94,0.15),rgba(22,163,74,0.1))",color:"#4ade80",fontWeight:900,fontSize:"13px",cursor:"pointer",fontFamily:"inherit"}}>⬆️ 升1級<div style={{fontSize:"10px",fontWeight:400,marginTop:"2px"}}>消耗 1 個{detData.name}碎片</div></button>
-              {gs.cards[detData.id].copies>=2&&<button onClick={()=>upCard(detData.id,true)} style={{flex:1,padding:"10px",borderRadius:"12px",border:"2px solid rgba(251,191,36,0.5)",background:"linear-gradient(135deg,rgba(251,191,36,0.12),rgba(249,115,22,0.08))",color:"#fbbf24",fontWeight:900,fontSize:"13px",cursor:"pointer",fontFamily:"inherit"}}>⚡ 升到滿<div style={{fontSize:"10px",fontWeight:400,marginTop:"2px"}}>消耗全部 {gs.cards[detData.id].copies} 碎片</div></button>}
-            </div>
-          )}
-          {gs.cards[detData.id]&&gs.cards[detData.id].copies<1&&<div style={{marginTop:"10px",fontSize:"11px",color:"#57534e"}}>需要抽到重複角色獲得碎片</div>}
+          {gs.cards[detData.id]?.copies>=1&&<div style={{marginTop:"12px",display:"flex",gap:"8px"}}>
+            <button onClick={()=>upCard(detData.id,false)} style={{flex:1,padding:"10px",borderRadius:"12px",border:"2px solid rgba(34,197,94,0.5)",background:"linear-gradient(135deg,rgba(34,197,94,0.15),rgba(22,163,74,0.1))",color:"#4ade80",fontWeight:900,fontSize:"13px",cursor:"pointer",fontFamily:"inherit"}}>⬆️ 升1級<div style={{fontSize:"10px",fontWeight:400,marginTop:"2px"}}>消耗1碎片</div></button>
+            {gs.cards[detData.id].copies>=2&&<button onClick={()=>upCard(detData.id,true)} style={{flex:1,padding:"10px",borderRadius:"12px",border:"2px solid rgba(251,191,36,0.5)",background:"linear-gradient(135deg,rgba(251,191,36,0.12),rgba(249,115,22,0.08))",color:"#fbbf24",fontWeight:900,fontSize:"13px",cursor:"pointer",fontFamily:"inherit"}}>⚡ 升到滿<div style={{fontSize:"10px",fontWeight:400,marginTop:"2px"}}>全部{gs.cards[detData.id].copies}碎片</div></button>}
+          </div>}
+          {gs.cards[detData.id]?.copies<1&&<div style={{marginTop:"10px",fontSize:"11px",color:"#57534e"}}>需要碎片才能升級</div>}
           <button onClick={()=>setCDet(null)} style={{marginTop:"10px",padding:"6px 20px",borderRadius:"8px",border:"1px solid rgba(255,255,255,0.08)",background:"rgba(255,255,255,0.03)",color:"#78716c",fontSize:"11px",cursor:"pointer",fontFamily:"inherit"}}>關閉</button>
         </div>
       </div>}
@@ -253,13 +367,12 @@ export default function App(){
 
       {/* ═══ CONTENT ═══ */}
       <div style={{position:"relative",zIndex:1,maxWidth:460,margin:"0 auto",paddingBottom:"90px"}}>
-
-        {/* Cover Banner */}
+        {/* Cover */}
         <div style={{position:"relative",width:"100%",height:"200px",overflow:"hidden"}}>
           <img src="/cover.jpg" alt="" style={{width:"100%",height:"100%",objectFit:"cover",display:"block"}} onError={e=>{e.target.style.display="none"}}/>
           <div style={{position:"absolute",inset:0,background:"linear-gradient(to bottom,rgba(8,0,0,0.3) 0%,rgba(8,0,0,0) 30%,rgba(8,0,0,0.8) 80%,#080000 100%)"}}/>
           <div style={{position:"absolute",bottom:"12px",left:0,right:0,textAlign:"center"}}>
-            <div style={{fontFamily:"'Black Ops One',cursive",fontSize:"42px",background:"linear-gradient(135deg,#ef4444,#f97316,#fbbf24,#ef4444)",backgroundSize:"300% 300%",animation:"burnText 4s ease infinite",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",letterSpacing:"3px",textShadow:"none"}}>Lv.{gs.level}</div>
+            <div style={{fontFamily:"'Black Ops One',cursive",fontSize:"42px",background:"linear-gradient(135deg,#ef4444,#f97316,#fbbf24,#ef4444)",backgroundSize:"300% 300%",animation:"burnText 4s ease infinite",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",letterSpacing:"3px"}}>Lv.{gs.level}</div>
             <div style={{fontSize:"12px",color:rank.c,fontWeight:700,letterSpacing:"3px"}}>[{rank.t}]</div>
           </div>
         </div>
@@ -276,9 +389,9 @@ export default function App(){
             <div onClick={()=>setShop(true)} style={{display:"flex",alignItems:"center",gap:"5px",padding:"2px 12px",borderRadius:"8px",background:"rgba(251,191,36,0.08)",border:"1px solid rgba(251,191,36,0.2)",cursor:"pointer",animation:gP?"goldPop 0.4s ease":"none"}}><span style={{fontSize:"15px"}}>🪙</span><span style={{fontFamily:"'Black Ops One',cursive",color:"#fbbf24",fontSize:"15px"}}>{gs.gold}</span></div>
           </div>
 
-          {/* Nav */}
-          <div style={{display:"flex",gap:"3px",marginBottom:"14px",background:"rgba(255,255,255,0.02)",borderRadius:"12px",padding:"3px"}}>
-            {[{k:"train",l:"🔥 訓練"},{k:"cards",l:"🃏 角色"},{k:"stats",l:"📊 能力"},{k:"skills",l:"⚔️ 技能"}].map(t=>(<button key={t.k} onClick={()=>setVw(t.k)} style={{flex:1,padding:"8px 4px",borderRadius:"9px",border:"none",cursor:"pointer",fontSize:"12px",fontWeight:700,fontFamily:"inherit",background:vw===t.k?"linear-gradient(135deg,rgba(239,68,68,0.2),rgba(249,115,22,0.12))":"transparent",color:vw===t.k?"#f97316":"#57534e",transition:"all 0.2s"}}>{t.l}</button>))}
+          {/* Nav — 5 tabs */}
+          <div style={{display:"flex",gap:"2px",marginBottom:"14px",background:"rgba(255,255,255,0.02)",borderRadius:"12px",padding:"3px"}}>
+            {[{k:"train",l:"🔥訓練"},{k:"battle",l:"🗡️戰鬥"},{k:"cards",l:"🃏角色"},{k:"stats",l:"📊能力"},{k:"skills",l:"⚔️技能"}].map(t=>(<button key={t.k} onClick={()=>setVw(t.k)} style={{flex:1,padding:"7px 2px",borderRadius:"9px",border:"none",cursor:"pointer",fontSize:"11px",fontWeight:700,fontFamily:"inherit",background:vw===t.k?"linear-gradient(135deg,rgba(239,68,68,0.2),rgba(249,115,22,0.12))":"transparent",color:vw===t.k?"#f97316":"#57534e",transition:"all 0.2s"}}>{t.l}</button>))}
           </div>
 
           {/* ═══ TRAIN ═══ */}
@@ -290,48 +403,103 @@ export default function App(){
                 <div style={{height:"4px",borderRadius:"2px",marginBottom:"9px",background:"rgba(255,255,255,0.05)",overflow:"hidden"}}><div style={{height:"100%",borderRadius:"2px",width:`${p}%`,background:c?"linear-gradient(90deg,#22c55e,#4ade80)":"linear-gradient(90deg,#ef4444,#f97316)",transition:"width 0.4s"}}/></div>
                 {!c&&<div style={{display:"flex",gap:"7px",overflow:"hidden",width:"100%"}}><input type="number" inputMode="numeric" pattern="[0-9]*" placeholder="輸入次數" value={inp[ex.id]||""} onChange={e=>setInp(q=>({...q,[ex.id]:e.target.value}))} onKeyDown={e=>e.key==="Enter"&&doEx(ex)} style={{flex:"1 1 0%",minWidth:0,width:0,padding:"9px 11px",borderRadius:"9px",border:"1px solid rgba(255,255,255,0.08)",background:"rgba(0,0,0,0.4)",color:"#e7e5e4",fontSize:"16px",fontFamily:"inherit",outline:"none",WebkitAppearance:"none",appearance:"none"}}/><button onClick={()=>doEx(ex)} style={{flexShrink:0,padding:"9px 16px",borderRadius:"9px",border:"none",background:"linear-gradient(135deg,#dc2626,#b91c1c)",color:"#fff",fontWeight:700,fontSize:"13px",cursor:"pointer",fontFamily:"inherit"}}>確認</button></div>}
               </div>);})}
-            {allDone&&!rdClr&&(()=>{
-              const canGo=!gs.completedAt||canNextRound(gs.completedAt);
-              return(<div style={{textAlign:"center",marginTop:"14px",animation:"fadeUp 0.4s ease-out"}}>
-                {canGo?<button onClick={()=>setRdClr(true)} style={{padding:"14px 36px",borderRadius:"14px",border:"2px solid rgba(239,68,68,0.5)",background:"linear-gradient(135deg,rgba(239,68,68,0.15),rgba(249,115,22,0.1))",color:"#f97316",fontWeight:900,fontSize:"17px",cursor:"pointer",fontFamily:"inherit",animation:"pulse 2s infinite,bGlow 2s infinite"}}>🔥 完成！下一關 🔥</button>
-                :<div style={{padding:"18px",borderRadius:"14px",background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.06)"}}>
-                  <div style={{fontSize:"14px",fontWeight:700,color:"#4ade80",marginBottom:"6px"}}>✅ 今日任務已完成！</div>
-                  <div style={{fontSize:"12px",color:"#78716c"}}>下一關將在04:00 解鎖</div>
-                  <div style={{fontFamily:"'Black Ops One',cursive",fontSize:"22px",color:"#f97316",marginTop:"6px"}}>{midnightStr||getTimeToMidnight()}</div>
-                </div>}
-              </div>);
-            })()}
-            <div style={{textAlign:"center",marginTop:"18px"}}>
-              <button onClick={()=>{
-                setSecretTap(p=>{const n=p+1;if(tapTimer.current)clearTimeout(tapTimer.current);tapTimer.current=setTimeout(()=>setSecretTap(0),2000);if(n>=5){setShowSecret(true);setSecretTap(0);return 0;}return n;});
-              }} style={{padding:"5px 18px",borderRadius:"8px",border:"1px solid rgba(239,68,68,0.15)",background:"rgba(239,68,68,0.03)",color:"#78716c",fontSize:"10px",cursor:"pointer",fontFamily:"inherit"}}>重置</button>
-              {showSecret&&<div style={{marginTop:"12px",padding:"12px",borderRadius:"12px",background:"rgba(139,92,246,0.08)",border:"1px solid rgba(139,92,246,0.2)"}}>
-                <div style={{fontSize:"10px",color:"#a78bfa",marginBottom:"6px"}}>🔑 管理員模式</div>
-                <div style={{display:"flex",gap:"6px"}}>
-                  <input type="number" inputMode="numeric" placeholder="跳到第幾關" value={skipTo} onChange={e=>setSkipTo(e.target.value)} style={{flex:"1 1 0%",minWidth:0,padding:"7px 10px",borderRadius:"8px",border:"1px solid rgba(139,92,246,0.2)",background:"rgba(0,0,0,0.3)",color:"#e7e5e4",fontSize:"14px",fontFamily:"inherit",outline:"none"}}/>
-                  <button onClick={()=>{
-                    const target=parseInt(skipTo);
-                    if(!target||target<=gs.round||target>100){noti("無效關卡");return;}
-                    const rw=calcSkipRewards(gs.round,target);
-                    let nL=gs.level,nM=gs.maxHp,nX=gs.xp+rw.xp;
-                    while(nL<100&&nX>=xpFor(nL+1)){nL++;nM+=5;}
-                    const nsk=[...(gs.skills||[])];SKILLS.forEach(s=>{if(!nsk.includes(s.id)&&nL>=s.lv)nsk.push(s.id);});
-                    setGs(p=>({...p,round:target,progress:{},curEx:getEx(target),cleared:p.cleared+(target-p.round),xp:nX,level:nL,maxHp:nM,hp:nM,gold:p.gold+rw.gold,skills:nsk,completedAt:null}));
-                    setSkipTo("");setShowSecret(false);noti(`已跳至第 ${target} 關！+${rw.xp}XP +${rw.gold}🪙`,"success");
-                  }} style={{flexShrink:0,padding:"7px 14px",borderRadius:"8px",border:"none",background:"linear-gradient(135deg,#7c3aed,#6d28d9)",color:"#fff",fontWeight:700,fontSize:"12px",cursor:"pointer",fontFamily:"inherit"}}>跳關</button>
-                </div>
-                <div style={{display:"flex",gap:"6px",marginTop:"6px"}}>
-                  <button onClick={resetAll} style={{flex:1,padding:"6px",borderRadius:"6px",border:"1px solid rgba(239,68,68,0.3)",background:"rgba(239,68,68,0.05)",color:"#f87171",fontSize:"10px",cursor:"pointer",fontFamily:"inherit"}}>⚠️ 重置數據</button>
-                  <button onClick={()=>setShowSecret(false)} style={{flex:1,padding:"6px",borderRadius:"6px",border:"1px solid rgba(255,255,255,0.08)",background:"rgba(255,255,255,0.03)",color:"#78716c",fontSize:"10px",cursor:"pointer",fontFamily:"inherit"}}>關閉</button>
-                </div>
-              </div>}
+            {allDone&&!rdClr&&(()=>{const canGo=!gs.completedAt||canNextRound(gs.completedAt);return(<div style={{textAlign:"center",marginTop:"14px",animation:"fadeUp 0.4s ease-out"}}>{canGo?<button onClick={()=>setRdClr(true)} style={{padding:"14px 36px",borderRadius:"14px",border:"2px solid rgba(239,68,68,0.5)",background:"linear-gradient(135deg,rgba(239,68,68,0.15),rgba(249,115,22,0.1))",color:"#f97316",fontWeight:900,fontSize:"17px",cursor:"pointer",fontFamily:"inherit",animation:"pulse 2s infinite,bGlow 2s infinite"}}>🔥 完成！下一關 🔥</button>:<div style={{padding:"18px",borderRadius:"14px",background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.06)"}}><div style={{fontSize:"14px",fontWeight:700,color:"#4ade80",marginBottom:"6px"}}>✅ 今日任務已完成！</div><div style={{fontSize:"12px",color:"#78716c"}}>下一關將在 04:00 解鎖</div><div style={{fontFamily:"'Black Ops One',cursive",fontSize:"22px",color:"#f97316",marginTop:"6px"}}>{midnightStr||getTimeToReset()}</div></div>}</div>);})()}
+            <div style={{textAlign:"center",marginTop:"18px"}}><button onClick={()=>{setSecretTap(p=>{const n=p+1;if(tapTimer.current)clearTimeout(tapTimer.current);tapTimer.current=setTimeout(()=>setSecretTap(0),2000);if(n>=5){setShowSecret(true);return 0;}return n;});}} style={{padding:"5px 18px",borderRadius:"8px",border:"1px solid rgba(239,68,68,0.15)",background:"rgba(239,68,68,0.03)",color:"#78716c",fontSize:"10px",cursor:"pointer",fontFamily:"inherit"}}>重置</button>
+              {showSecret&&<div style={{marginTop:"12px",padding:"12px",borderRadius:"12px",background:"rgba(139,92,246,0.08)",border:"1px solid rgba(139,92,246,0.2)"}}><div style={{fontSize:"10px",color:"#a78bfa",marginBottom:"6px"}}>🔑 管理員</div><div style={{display:"flex",gap:"6px"}}><input type="number" inputMode="numeric" placeholder="跳到第幾關" value={skipTo} onChange={e=>setSkipTo(e.target.value)} style={{flex:"1 1 0%",minWidth:0,padding:"7px 10px",borderRadius:"8px",border:"1px solid rgba(139,92,246,0.2)",background:"rgba(0,0,0,0.3)",color:"#e7e5e4",fontSize:"14px",fontFamily:"inherit",outline:"none"}}/><button onClick={()=>{const t=parseInt(skipTo);if(!t||t<=gs.round||t>100){noti("無效");return;}const rw=calcSkipRewards(gs.round,t);let nL=gs.level,nM=gs.maxHp,nX=gs.xp+rw.xp;while(nL<100&&nX>=xpFor(nL+1)){nL++;nM+=5;}const nsk=[...(gs.skills||[])];SKILLS.forEach(s=>{if(!nsk.includes(s.id)&&nL>=s.lv)nsk.push(s.id);});setGs(p=>({...p,round:t,progress:{},curEx:getEx(t),cleared:p.cleared+(t-p.round),xp:nX,level:nL,maxHp:nM,hp:nM,gold:p.gold+rw.gold,skills:nsk,completedAt:null}));setSkipTo("");setShowSecret(false);noti(`跳至第${t}關！+${rw.xp}XP +${rw.gold}🪙`,"success");}} style={{flexShrink:0,padding:"7px 14px",borderRadius:"8px",border:"none",background:"linear-gradient(135deg,#7c3aed,#6d28d9)",color:"#fff",fontWeight:700,fontSize:"12px",cursor:"pointer",fontFamily:"inherit"}}>跳關</button></div><div style={{display:"flex",gap:"6px",marginTop:"6px"}}><button onClick={resetAll} style={{flex:1,padding:"6px",borderRadius:"6px",border:"1px solid rgba(239,68,68,0.3)",background:"rgba(239,68,68,0.05)",color:"#f87171",fontSize:"10px",cursor:"pointer",fontFamily:"inherit"}}>⚠️重置</button><button onClick={()=>setShowSecret(false)} style={{flex:1,padding:"6px",borderRadius:"6px",border:"1px solid rgba(255,255,255,0.08)",background:"rgba(255,255,255,0.03)",color:"#78716c",fontSize:"10px",cursor:"pointer",fontFamily:"inherit"}}>關閉</button></div></div>}
             </div>
+          </div>}
+
+          {/* ═══════════════════════════════════════
+               BATTLE VIEW
+             ═══════════════════════════════════════ */}
+          {vw==="battle"&&<div style={{animation:"fadeUp 0.3s ease-out"}}>
+
+            {/* PREP PHASE */}
+            {btlPhase==="prep"&&<div>
+              {/* Boss Info */}
+              <div style={{padding:"16px",borderRadius:"16px",background:"linear-gradient(135deg,rgba(239,68,68,0.08),rgba(0,0,0,0.3))",border:"1px solid rgba(239,68,68,0.2)",marginBottom:"14px",textAlign:"center"}}>
+                <div style={{fontSize:"11px",color:"#78716c",marginBottom:"4px"}}>Boss #{gs.bossRound}　{boss.cycle>1?`(周回 ${boss.cycle})`:""}</div>
+                <div style={{fontSize:"40px",marginBottom:"4px"}}>{boss.emoji}</div>
+                <div style={{fontSize:"18px",fontWeight:900,color:"#ef4444"}}>{boss.name}</div>
+                <div style={{fontSize:"11px",color:"#a8a29e",marginBottom:"8px"}}>{boss.desc}</div>
+                <div style={{display:"flex",justifyContent:"center",gap:"12px",fontSize:"11px"}}>
+                  {[{l:"攻",v:boss.stats.atk,c:"#ef4444"},{l:"防",v:boss.stats.def,c:"#3b82f6"},{l:"速",v:boss.stats.spd,c:"#22c55e"},{l:"HP",v:boss.stats.hp,c:"#f59e0b"}].map(s=>(<div key={s.l}><span style={{color:"#78716c"}}>{s.l} </span><span style={{fontFamily:"'Black Ops One',cursive",color:s.c}}>{s.v}</span></div>))}
+                </div>
+              </div>
+
+              {/* Card Selection */}
+              <div style={{fontSize:"13px",fontWeight:700,color:"#a8a29e",marginBottom:"8px"}}>[選擇出戰卡片]　{btlPick.length}/3</div>
+              {ownedCards.length===0?<div style={{textAlign:"center",padding:"24px",color:"#57534e",fontSize:"13px"}}>還沒有卡片，去抽獎吧！</div>:
+              <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:"6px",marginBottom:"14px"}}>
+                {ownedCards.map(cid=>{const card=CARD_POOL.find(c=>c.id===cid);if(!card)return null;const isSel=btlPick.includes(cid);
+                  return(<div key={cid} onClick={()=>toggleBtlCard(cid)} style={{textAlign:"center",cursor:"pointer"}}>
+                    <CImg card={card} sz="sm" lvl={gs.cards[cid].level} sel={isSel} dim={!isSel&&btlPick.length>=3}/>
+                    <div style={{fontSize:"8px",color:isSel?"#4ade80":"#78716c",marginTop:"2px",fontWeight:700}}>{card.name}</div>
+                  </div>);
+                })}
+              </div>}
+
+              <button onClick={startBattle} disabled={btlPick.length===0} style={{width:"100%",padding:"14px",borderRadius:"14px",border:"2px solid rgba(239,68,68,0.5)",background:"linear-gradient(135deg,rgba(239,68,68,0.15),rgba(249,115,22,0.1))",color:"#f97316",fontWeight:900,fontSize:"17px",cursor:"pointer",fontFamily:"inherit",opacity:btlPick.length===0?0.4:1,animation:btlPick.length>0?"pulse 2s infinite":"none"}}>
+                🗡️ 開始戰鬥
+              </button>
+            </div>}
+
+            {/* FIGHTING PHASE */}
+            {btlPhase==="fighting"&&curLog&&<div>
+              {/* Boss HP */}
+              <div style={{padding:"14px",borderRadius:"14px",background:"rgba(239,68,68,0.06)",border:"1px solid rgba(239,68,68,0.15)",marginBottom:"10px",animation:curLog.type==="card_atk"?"hitShake 0.3s ease":"none"}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"6px"}}>
+                  <div style={{display:"flex",alignItems:"center",gap:"6px"}}><span style={{fontSize:"24px"}}>{boss.emoji.split("").slice(0,2).join("")}</span><span style={{fontSize:"14px",fontWeight:700,color:"#ef4444"}}>{boss.name}</span></div>
+                  <span style={{fontSize:"11px",color:"#78716c"}}>{Math.max(curLog.bossHp,0)}/{curLog.bossMaxHp}</span>
+                </div>
+                <HpBar cur={curLog.bossHp} max={curLog.bossMaxHp} color="#ef4444" h={8}/>
+                {curLog.type==="card_atk"&&<div style={{textAlign:"center",marginTop:"4px",fontSize:"12px",color:"#fbbf24",fontWeight:700,animation:"dmgFloat 0.8s ease-out"}}>-{curLog.dmg}</div>}
+              </div>
+
+              {/* VS */}
+              <div style={{textAlign:"center",fontSize:"13px",color:"#78716c",margin:"6px 0"}}>{curLog.type==="card_atk"?`${curLog.cardName} 攻擊！`:`Boss 攻擊 ${curLog.targetName}！`}</div>
+
+              {/* Team Cards HP */}
+              <div style={{display:"flex",gap:"8px",justifyContent:"center",marginBottom:"12px"}}>
+                {curLog.teamHp.map((th,i)=>{
+                  const cid=btlPick[i];if(!cid)return null;
+                  const card=CARD_POOL.find(c=>c.id===cid);
+                  const isHit=curLog.type==="boss_atk"&&curLog.targetIdx===i;
+                  return(<div key={i} style={{flex:1,maxWidth:"120px",textAlign:"center",animation:isHit?"hitShake 0.3s ease":"none",opacity:th.alive?1:0.3}}>
+                    <CImg card={card} sz="xs" lvl={gs.cards[cid]?.level}/>
+                    <div style={{fontSize:"8px",color:th.alive?"#e7e5e4":"#ef4444",marginTop:"3px"}}>{card.name}</div>
+                    <div style={{fontSize:"8px",color:"#78716c",marginBottom:"2px"}}>{Math.max(th.cur,0)}/{th.max}</div>
+                    <HpBar cur={th.cur} max={th.max} h={4}/>
+                    {isHit&&<div style={{fontSize:"11px",color:"#ef4444",fontWeight:700,animation:"dmgFloat 0.8s ease-out"}}>-{curLog.dmg}</div>}
+                  </div>);
+                })}
+              </div>
+
+              {/* Skip button */}
+              {btlCanSkip&&<div style={{textAlign:"center"}}><button onClick={skipBattle} style={{padding:"8px 24px",borderRadius:"10px",border:"1px solid rgba(255,255,255,0.1)",background:"rgba(255,255,255,0.05)",color:"#a8a29e",fontWeight:700,fontSize:"13px",cursor:"pointer",fontFamily:"inherit"}}>⏩ 跳過戰鬥</button></div>}
+            </div>}
+
+            {/* RESULT PHASE */}
+            {btlPhase==="result"&&btlResult&&<div style={{textAlign:"center",animation:"fadeUp 0.4s ease-out"}}>
+              <div style={{fontSize:"48px",marginBottom:"8px"}}>{btlResult.win?"🏆":"💀"}</div>
+              <div style={{fontSize:"24px",fontWeight:900,color:btlResult.win?"#4ade80":"#ef4444",marginBottom:"6px"}}>{btlResult.win?"勝利！":"戰敗..."}</div>
+              <div style={{fontSize:"13px",color:"#a8a29e",marginBottom:"16px"}}>{btlResult.win?`擊敗了 ${boss.name}！`:`被 ${boss.name} 打敗了`}</div>
+
+              {btlResult.win&&<div style={{padding:"12px",borderRadius:"12px",background:"rgba(34,197,94,0.06)",border:"1px solid rgba(34,197,94,0.2)",marginBottom:"16px"}}>
+                <div style={{fontSize:"12px",color:"#78716c",marginBottom:"4px"}}>戰鬥獎勵</div>
+                <div style={{fontFamily:"'Black Ops One',cursive",fontSize:"18px",color:"#fbbf24"}}>+{50+gs.bossRound*10} XP　+{20+gs.bossRound*5} 🪙</div>
+              </div>}
+
+              <button onClick={claimBattleReward} style={{width:"100%",padding:"14px",borderRadius:"14px",border:`2px solid ${btlResult.win?"rgba(34,197,94,0.5)":"rgba(239,68,68,0.3)"}`,background:btlResult.win?"linear-gradient(135deg,rgba(34,197,94,0.15),rgba(22,163,74,0.1))":"linear-gradient(135deg,rgba(239,68,68,0.1),rgba(0,0,0,0.1))",color:btlResult.win?"#4ade80":"#f87171",fontWeight:900,fontSize:"16px",cursor:"pointer",fontFamily:"inherit"}}>
+                {btlResult.win?"✅ 領取獎勵":"🔄 再挑戰"}
+              </button>
+            </div>}
           </div>}
 
           {/* ═══ CARDS ═══ */}
           {vw==="cards"&&<div style={{animation:"fadeUp 0.3s ease-out"}}>
             <div style={{textAlign:"center",marginBottom:"14px",fontSize:"13px",fontWeight:700,color:"#a8a29e"}}>[角色收藏]　{owned}/{CARD_POOL.length}</div>
-            <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:"8px"}}>{CARD_POOL.map(c=>{const o=gs.cards[c.id];return(<div key={c.id} onClick={()=>o&&setCDet(c)} style={{textAlign:"center",opacity:o?1:0.25,cursor:o?"pointer":"default"}}><CImg card={c} sz="sm" lvl={o?.level}/><div style={{fontSize:"10px",color:o?RC[c.rarity].color:"#57534e",marginTop:"3px",fontWeight:700}}>{c.name}</div>{o&&o.copies>0&&<div style={{fontSize:"9px",color:"#fbbf24"}}>{c.name}碎片 ×{o.copies}</div>}</div>);})}</div>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:"8px"}}>{CARD_POOL.map(c=>{const o=gs.cards[c.id];return(<div key={c.id} onClick={()=>o&&setCDet(c)} style={{textAlign:"center",opacity:o?1:0.25,cursor:o?"pointer":"default"}}><CImg card={c} sz="sm" lvl={o?.level}/><div style={{fontSize:"10px",color:o?RC[c.rarity].color:"#57534e",marginTop:"3px",fontWeight:700}}>{c.name}</div>{o&&o.copies>0&&<div style={{fontSize:"9px",color:"#fbbf24"}}>碎片×{o.copies}</div>}</div>);})}</div>
             {owned===0&&<div style={{textAlign:"center",padding:"28px",color:"#57534e",fontSize:"13px"}}>還沒有角色<br/><span style={{fontSize:"11px",color:"#78716c"}}>點 🪙 去抽獎</span></div>}
           </div>}
 
