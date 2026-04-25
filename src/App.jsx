@@ -18,7 +18,7 @@ const RC={R:{color:"#60a5fa",bg:"linear-gradient(135deg,#1e3a5f,#1e40af)",border
 
 function pullOne(){const r=Math.random();const rar=r<0.03?"SSR":r<0.20?"SR":"R";const p=CARD_POOL.filter(c=>c.rarity===rar);return p[Math.floor(Math.random()*p.length)];}
 function pullTen(){const r=Array.from({length:10},()=>pullOne());if(!r.some(c=>c.rarity!=="R")){const sr=CARD_POOL.filter(c=>c.rarity==="SR"||c.rarity==="SSR");r[9]=sr[Math.floor(Math.random()*sr.length)];}return r;}
-function cStats(c,lv){const m=1+(lv-1)*0.12;return{atk:Math.floor(c.base.atk*m),def:Math.floor(c.base.def*m),spd:Math.floor(c.base.spd*m),hp:Math.floor(c.base.hp*m)};}
+function cStats(c,lv){const rates={R:0.06,SR:0.12,SSR:0.20};const m=1+(lv-1)*(rates[c.rarity]||0.12);return{atk:Math.floor(c.base.atk*m),def:Math.floor(c.base.def*m),spd:Math.floor(c.base.spd*m),hp:Math.floor(c.base.hp*m)};}
 
 /* ═══ EXERCISES & SKILLS ═══ */
 const ALL_EX=[{id:"squat",name:"深蹲",icon:"🔥",target:100},{id:"punch",name:"揮拳",icon:"👊",target:100},{id:"grip",name:"握力",icon:"✊",target:100},{id:"tuck_jump",name:"縮腳跳",icon:"🦵",target:50},{id:"high_knee",name:"高抬腿",icon:"🦿",target:100},{id:"precision_jump",name:"精準跳",icon:"🎯",target:50},{id:"stair_jump",name:"跳階梯",icon:"🪜",target:50}];
@@ -31,9 +31,52 @@ function getRank(l){if(l>=100)return{t:"武神",c:"#ffd700"};if(l>=80)return{t:"
 
 /* ═══ SAVE ═══ */
 const SK="fitness_rpg_v2";
-const DEF={level:1,xp:0,gold:0,round:1,hp:100,maxHp:100,curEx:null,progress:{},totalReps:{},stats:{strength:5,stamina:5,agility:5,jump:5,grip:3},skills:[],cleared:0,cards:{}};
-function load(){try{const s=localStorage.getItem(SK);if(s){const p=JSON.parse(s);return{...DEF,...p,cards:p.cards||{}};}}catch(e){}return{...DEF};}
+const DEF={level:1,xp:0,gold:0,round:1,hp:100,maxHp:100,curEx:null,progress:{},totalReps:{},stats:{strength:5,stamina:5,agility:5,jump:5,grip:3},skills:[],cleared:0,cards:{},completedAt:null};
+function load(){try{const s=localStorage.getItem(SK);if(s){const p=JSON.parse(s);return{...DEF,...p,cards:p.cards||{},completedAt:p.completedAt||null};}}catch(e){}return{...DEF};}
 function save(s){try{localStorage.setItem(SK,JSON.stringify(s));}catch(e){}}
+
+function canNextRound(completedAt) {
+  if(!completedAt) return false;
+  const completed = new Date(completedAt);
+  const now = new Date();
+  
+  // 設定重置目標時間
+  const resetTime = new Date(completed);
+  resetTime.setHours(4, 0, 0, 0); // 設為當天的 04:00
+
+  // 如果完成時間已經晚於當天的 04:00，那重置點就是「隔天」的 04:00
+  if (completed.getHours() >= 4) {
+    resetTime.setDate(resetTime.getDate() + 1);
+  }
+
+  return now >= resetTime;
+}
+
+function getTimeToMidnight(){
+  const now = new Date();
+  const target = new Date(now);
+  target.setHours(4, 0, 0, 0);
+
+  // 如果現在已經過凌晨 4 點了，目標就是明天的凌晨 4 點
+  if (now.getHours() >= 4) {
+    target.setDate(target.getDate() + 1);
+  }
+
+  const diff = target - now;
+  const h = Math.floor(diff / 3600000);
+  const m = Math.floor((diff % 3600000) / 60000);
+  const s = Math.floor((diff % 60000) / 1000);
+  return `${h}時${m}分${s}秒`;
+}
+
+function calcSkipRewards(fromRound,toRound){
+  let xp=0,gold=0;
+  for(let r=fromRound;r<toRound;r++){
+    const exs=shuf(ALL_EX,r*7+13).slice(0,4);
+    exs.forEach(ex=>{xp+=Math.floor(ex.target*2);gold+=Math.floor(ex.target*0.3)+15;});
+  }
+  return{xp,gold};
+}
 
 /* ═══ CARD IMAGE ═══ */
 function CImg({card,sz="full",lvl}){
@@ -62,9 +105,21 @@ export default function App(){
   const[pullRes,setPullRes]=useState(null);
   const[pulling,setPulling]=useState(false);
   const[cDet,setCDet]=useState(null);
+  const[secretTap,setSecretTap]=useState(0);
+  const[showSecret,setShowSecret]=useState(false);
+  const[skipTo,setSkipTo]=useState("");
+  const[midnightStr,setMidnightStr]=useState("");
   const nr=useRef(null);
+  const tapTimer=useRef(null);
 
   useEffect(()=>{save(gs);},[gs]);
+
+  // Midnight countdown timer
+  useEffect(()=>{
+    if(!gs.completedAt||canNextRound(gs.completedAt))return;
+    const iv=setInterval(()=>setMidnightStr(getTimeToMidnight()),1000);
+    return()=>clearInterval(iv);
+  },[gs.completedAt]);
 
   const xpN=xpFor(gs.level+1),xp0=xpFor(gs.level),xpP=xpN>xp0?((gs.xp-xp0)/(xpN-xp0))*100:100;
   const rank=getRank(gs.level),exs=gs.curEx||getEx(gs.round),allDone=exs.every(e=>(gs.progress[e.id]||0)>=e.target);
@@ -85,12 +140,15 @@ export default function App(){
       const nsk=[...(p.skills||[])];let su=null;SKILLS.forEach(s=>{if(!nsk.includes(s.id)&&nL>=s.lv){nsk.push(s.id);su=s;}});
       if(lu)setTimeout(()=>{setLvUpPop(true);setTimeout(()=>setLvUpPop(false),2500);},200);
       if(su)setTimeout(()=>setSkPop(su),lu?2800:200);
-      return{...p,progress:np,totalReps:nt,stats:ns,xp:nX,level:nL,maxHp:nM,hp:Math.min(p.hp+(just?10:2),nM),gold:p.gold+gG+bonus,skills:nsk};
+      return{...p,progress:np,totalReps:nt,stats:ns,xp:nX,level:nL,maxHp:nM,hp:Math.min(p.hp+(just?10:2),nM),gold:p.gold+gG+bonus,skills:nsk,completedAt:Object.values(np).length===exs.length&&exs.every(e2=>(np[e2.id]||0)>=e2.target)?new Date().toISOString():p.completedAt};
     });
     setInp(p=>({...p,[ex.id]:""}));setGP(true);setTimeout(()=>setGP(false),500);
     noti(`+${xpG} XP　+${gG+bonus} 🪙${just?"　🔥 完成！":""}`,just?"success":"info");
   }
-  function nextRd(){setGs(p=>{const n=p.round+1;return{...p,round:n,progress:{},curEx:getEx(n),cleared:p.cleared+1};});setRdClr(false);noti("🔥 新挑戰開始！","success");}
+  function nextRd(){
+    if(gs.completedAt&&!canNextRound(gs.completedAt)){noti("需等到午夜 12:00 才能進入下一關！");return;}
+    setGs(p=>{const n=p.round+1;return{...p,round:n,progress:{},curEx:getEx(n),cleared:p.cleared+1,completedAt:null};});setRdClr(false);noti("🔥 新挑戰開始！","success");
+  }
 
   function doPull(cnt){if(gs.gold<cnt){noti("金幣不足！");return;}setPulling(true);
     setTimeout(()=>{const res=cnt===1?[pullOne()]:pullTen();
@@ -232,8 +290,42 @@ export default function App(){
                 <div style={{height:"4px",borderRadius:"2px",marginBottom:"9px",background:"rgba(255,255,255,0.05)",overflow:"hidden"}}><div style={{height:"100%",borderRadius:"2px",width:`${p}%`,background:c?"linear-gradient(90deg,#22c55e,#4ade80)":"linear-gradient(90deg,#ef4444,#f97316)",transition:"width 0.4s"}}/></div>
                 {!c&&<div style={{display:"flex",gap:"7px",overflow:"hidden",width:"100%"}}><input type="number" inputMode="numeric" pattern="[0-9]*" placeholder="輸入次數" value={inp[ex.id]||""} onChange={e=>setInp(q=>({...q,[ex.id]:e.target.value}))} onKeyDown={e=>e.key==="Enter"&&doEx(ex)} style={{flex:"1 1 0%",minWidth:0,width:0,padding:"9px 11px",borderRadius:"9px",border:"1px solid rgba(255,255,255,0.08)",background:"rgba(0,0,0,0.4)",color:"#e7e5e4",fontSize:"16px",fontFamily:"inherit",outline:"none",WebkitAppearance:"none",appearance:"none"}}/><button onClick={()=>doEx(ex)} style={{flexShrink:0,padding:"9px 16px",borderRadius:"9px",border:"none",background:"linear-gradient(135deg,#dc2626,#b91c1c)",color:"#fff",fontWeight:700,fontSize:"13px",cursor:"pointer",fontFamily:"inherit"}}>確認</button></div>}
               </div>);})}
-            {allDone&&!rdClr&&<div style={{textAlign:"center",marginTop:"14px",animation:"fadeUp 0.4s ease-out"}}><button onClick={()=>setRdClr(true)} style={{padding:"14px 36px",borderRadius:"14px",border:"2px solid rgba(239,68,68,0.5)",background:"linear-gradient(135deg,rgba(239,68,68,0.15),rgba(249,115,22,0.1))",color:"#f97316",fontWeight:900,fontSize:"17px",cursor:"pointer",fontFamily:"inherit",animation:"pulse 2s infinite,bGlow 2s infinite"}}>🔥 完成！下一關 🔥</button></div>}
-            <div style={{textAlign:"center",marginTop:"18px"}}><button onClick={resetAll} style={{padding:"5px 18px",borderRadius:"8px",border:"1px solid rgba(239,68,68,0.15)",background:"rgba(239,68,68,0.03)",color:"#78716c",fontSize:"10px",cursor:"pointer",fontFamily:"inherit"}}>重置</button></div>
+            {allDone&&!rdClr&&(()=>{
+              const canGo=!gs.completedAt||canNextRound(gs.completedAt);
+              return(<div style={{textAlign:"center",marginTop:"14px",animation:"fadeUp 0.4s ease-out"}}>
+                {canGo?<button onClick={()=>setRdClr(true)} style={{padding:"14px 36px",borderRadius:"14px",border:"2px solid rgba(239,68,68,0.5)",background:"linear-gradient(135deg,rgba(239,68,68,0.15),rgba(249,115,22,0.1))",color:"#f97316",fontWeight:900,fontSize:"17px",cursor:"pointer",fontFamily:"inherit",animation:"pulse 2s infinite,bGlow 2s infinite"}}>🔥 完成！下一關 🔥</button>
+                :<div style={{padding:"18px",borderRadius:"14px",background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.06)"}}>
+                  <div style={{fontSize:"14px",fontWeight:700,color:"#4ade80",marginBottom:"6px"}}>✅ 今日任務已完成！</div>
+                  <div style={{fontSize:"12px",color:"#78716c"}}>下一關將在午夜 00:00 解鎖</div>
+                  <div style={{fontFamily:"'Black Ops One',cursive",fontSize:"22px",color:"#f97316",marginTop:"6px"}}>{midnightStr||getTimeToMidnight()}</div>
+                </div>}
+              </div>);
+            })()}
+            <div style={{textAlign:"center",marginTop:"18px"}}>
+              <button onClick={()=>{
+                setSecretTap(p=>{const n=p+1;if(tapTimer.current)clearTimeout(tapTimer.current);tapTimer.current=setTimeout(()=>setSecretTap(0),2000);if(n>=5){setShowSecret(true);setSecretTap(0);return 0;}return n;});
+              }} style={{padding:"5px 18px",borderRadius:"8px",border:"1px solid rgba(239,68,68,0.15)",background:"rgba(239,68,68,0.03)",color:"#78716c",fontSize:"10px",cursor:"pointer",fontFamily:"inherit"}}>重置</button>
+              {showSecret&&<div style={{marginTop:"12px",padding:"12px",borderRadius:"12px",background:"rgba(139,92,246,0.08)",border:"1px solid rgba(139,92,246,0.2)"}}>
+                <div style={{fontSize:"10px",color:"#a78bfa",marginBottom:"6px"}}>🔑 管理員模式</div>
+                <div style={{display:"flex",gap:"6px"}}>
+                  <input type="number" inputMode="numeric" placeholder="跳到第幾關" value={skipTo} onChange={e=>setSkipTo(e.target.value)} style={{flex:"1 1 0%",minWidth:0,padding:"7px 10px",borderRadius:"8px",border:"1px solid rgba(139,92,246,0.2)",background:"rgba(0,0,0,0.3)",color:"#e7e5e4",fontSize:"14px",fontFamily:"inherit",outline:"none"}}/>
+                  <button onClick={()=>{
+                    const target=parseInt(skipTo);
+                    if(!target||target<=gs.round||target>100){noti("無效關卡");return;}
+                    const rw=calcSkipRewards(gs.round,target);
+                    let nL=gs.level,nM=gs.maxHp,nX=gs.xp+rw.xp;
+                    while(nL<100&&nX>=xpFor(nL+1)){nL++;nM+=5;}
+                    const nsk=[...(gs.skills||[])];SKILLS.forEach(s=>{if(!nsk.includes(s.id)&&nL>=s.lv)nsk.push(s.id);});
+                    setGs(p=>({...p,round:target,progress:{},curEx:getEx(target),cleared:p.cleared+(target-p.round),xp:nX,level:nL,maxHp:nM,hp:nM,gold:p.gold+rw.gold,skills:nsk,completedAt:null}));
+                    setSkipTo("");setShowSecret(false);noti(`已跳至第 ${target} 關！+${rw.xp}XP +${rw.gold}🪙`,"success");
+                  }} style={{flexShrink:0,padding:"7px 14px",borderRadius:"8px",border:"none",background:"linear-gradient(135deg,#7c3aed,#6d28d9)",color:"#fff",fontWeight:700,fontSize:"12px",cursor:"pointer",fontFamily:"inherit"}}>跳關</button>
+                </div>
+                <div style={{display:"flex",gap:"6px",marginTop:"6px"}}>
+                  <button onClick={resetAll} style={{flex:1,padding:"6px",borderRadius:"6px",border:"1px solid rgba(239,68,68,0.3)",background:"rgba(239,68,68,0.05)",color:"#f87171",fontSize:"10px",cursor:"pointer",fontFamily:"inherit"}}>⚠️ 重置數據</button>
+                  <button onClick={()=>setShowSecret(false)} style={{flex:1,padding:"6px",borderRadius:"6px",border:"1px solid rgba(255,255,255,0.08)",background:"rgba(255,255,255,0.03)",color:"#78716c",fontSize:"10px",cursor:"pointer",fontFamily:"inherit"}}>關閉</button>
+                </div>
+              </div>}
+            </div>
           </div>}
 
           {/* ═══ CARDS ═══ */}
