@@ -1,8 +1,6 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef } from "react";
 
-/* ═══════════════════════════════════════
-   CARD DATA
-   ═══════════════════════════════════════ */
+/* ═══ CARD DATA ═══ */
 const CARD_POOL = [
   { id:"c01",name:"新手冒險者",rarity:"R",img:"/cards/card_01.jpg",base:{atk:28,def:38,spd:35,hp:50} },
   { id:"c04",name:"宅邸守衛",rarity:"R",img:"/cards/card_04.jpg",base:{atk:30,def:42,spd:28,hp:52} },
@@ -13,134 +11,112 @@ const CARD_POOL = [
   { id:"c03",name:"美食獵人",rarity:"SR",img:"/cards/card_03.jpg",base:{atk:48,def:58,spd:62,hp:65} },
   { id:"c05",name:"都市行者",rarity:"SR",img:"/cards/card_05.jpg",base:{atk:52,def:50,spd:68,hp:58} },
   { id:"c11",name:"次元行者",rarity:"SR",img:"/cards/card_11.jpg",base:{atk:55,def:62,spd:55,hp:60} },
-  { id:"c06",name:"暗影獵手",rarity:"SSR",img:"/cards/card_06.jpg",base:{atk:98,def:80,spd:90,hp:105} },
-  { id:"c07",name:"魔王覺醒",rarity:"SSR",img:"/cards/card_07.jpg",base:{atk:105,def:85,spd:82,hp:100} },
+  { id:"c06",name:"暗影獵手",rarity:"SSR",img:"/cards/card_06.jpg",base:{atk:110,def:88,spd:98,hp:115} },
+  { id:"c07",name:"魔王覺醒",rarity:"SSR",img:"/cards/card_07.jpg",base:{atk:118,def:92,spd:88,hp:110} },
 ];
-const RC={R:{color:"#60a5fa",bg:"linear-gradient(135deg,#1e3a5f,#1e40af)",border:"#3b82f6",glow:"rgba(59,130,246,0.3)"},SR:{color:"#c084fc",bg:"linear-gradient(135deg,#4a1d7a,#7c3aed)",border:"#8b5cf6",glow:"rgba(139,92,246,0.4)"},SSR:{color:"#fbbf24",bg:"linear-gradient(135deg,#78350f,#d97706)",border:"#f59e0b",glow:"rgba(251,191,36,0.5)"}};
+const RC={R:{color:"#60a5fa",border:"#3b82f6",glow:"rgba(59,130,246,0.3)",bg:"#1e3a5f"},SR:{color:"#c084fc",border:"#8b5cf6",glow:"rgba(139,92,246,0.4)",bg:"#4a1d7a"},SSR:{color:"#fbbf24",border:"#f59e0b",glow:"rgba(251,191,36,0.5)",bg:"#78350f"}};
 
 function pullOne(){const r=Math.random();const rar=r<0.03?"SSR":r<0.20?"SR":"R";const p=CARD_POOL.filter(c=>c.rarity===rar);return p[Math.floor(Math.random()*p.length)];}
 function pullTen(){const r=Array.from({length:10},()=>pullOne());if(!r.some(c=>c.rarity!=="R")){const sr=CARD_POOL.filter(c=>c.rarity==="SR"||c.rarity==="SSR");r[9]=sr[Math.floor(Math.random()*sr.length)];}return r;}
-function cStats(c,lv){const rates={R:0.06,SR:0.12,SSR:0.20};const m=1+(lv-1)*(rates[c.rarity]||0.12);return{atk:Math.floor(c.base.atk*m),def:Math.floor(c.base.def*m),spd:Math.floor(c.base.spd*m),hp:Math.floor(c.base.hp*m)};}
+
+// Card stats with level + star scaling. Each star = 1.5x
+function cStats(c,lv,stars=0){const rates={R:0.06,SR:0.12,SSR:0.20};const m=1+(lv-1)*(rates[c.rarity]||0.12);const sm=Math.pow(1.5,stars);return{atk:Math.floor(c.base.atk*m*sm),def:Math.floor(c.base.def*m*sm),spd:Math.floor(c.base.spd*m*sm),hp:Math.floor(c.base.hp*m*sm)};}
 function calcCP(st){return Math.floor(st.atk*1.5+st.def*1.0+st.spd*1.2+st.hp*0.8);}
-function cardCP(card,lv){return calcCP(cStats(card,lv));}
-function bossCP(bs){return calcCP(bs);}
+function cardCP(card,lv,stars=0){return calcCP(cStats(card,lv,stars));}
 
-/* ═══════════════════════════════════════
-   BOSS DATA — 10 Bosses, infinite cycle
-   ═══════════════════════════════════════ */
-const BOSSES = [
-  { name:"史萊姆王",emoji:"👑🟢",base:{atk:25,def:15,spd:20,hp:120},desc:"看似弱小卻異常黏人" },
-  { name:"骷髏騎士",emoji:"💀⚔️",base:{atk:35,def:30,spd:25,hp:180},desc:"不死軍團的先鋒" },
-  { name:"暗影狼王",emoji:"🐺🌑",base:{atk:45,def:22,spd:50,hp:160},desc:"黑夜中的獵手" },
-  { name:"火焰巨人",emoji:"🔥👹",base:{atk:55,def:40,spd:15,hp:280},desc:"燃燒一切的暴怒之軀" },
-  { name:"冰霜女巫",emoji:"❄️🧙‍♀️",base:{atk:42,def:35,spd:38,hp:220},desc:"寒冰封印萬物" },
-  { name:"雷電飛龍",emoji:"⚡🐉",base:{atk:60,def:45,spd:55,hp:300},desc:"天空的霸主" },
-  { name:"深淵領主",emoji:"👿🕳️",base:{atk:65,def:50,spd:30,hp:380},desc:"深淵的統治者" },
-  { name:"血月魔狼",emoji:"🌕🐺",base:{atk:70,def:38,spd:60,hp:340},desc:"滿月之夜的恐懼" },
-  { name:"墮落天使",emoji:"😈👼",base:{atk:75,def:55,spd:45,hp:420},desc:"光與暗的化身" },
-  { name:"終焉之王",emoji:"💀👑",base:{atk:85,def:65,spd:50,hp:500},desc:"一切的終結" },
-];
-
-function getBossStats(bossRound){
-  const idx=(bossRound-1)%10;
-  const cycle=Math.ceil(bossRound/10);
-  const b=BOSSES[idx];
-  const mult=1+(cycle-1)*0.6;
-  return{
-    ...b,idx,cycle,
-    stats:{atk:Math.floor(b.base.atk*mult),def:Math.floor(b.base.def*mult),spd:Math.floor(b.base.spd*mult),hp:Math.floor(b.base.hp*mult)},
-  };
+// Player stats from training stats. Strong early, linear growth
+function playerStats(stats,level){
+  return{atk:Math.floor(stats.strength*3.5+level*1.5+10),def:Math.floor(stats.grip*3+stats.stamina*0.5+level+8),spd:Math.floor((stats.agility+stats.jump)*2+level*0.8+12),hp:Math.floor(stats.stamina*4+level*2.5+60)};
 }
 
-/* ═══ BATTLE ENGINE ═══ */
-function simulateBattle(cardTeam, bossStats){
-  // cardTeam: [{card, stats:{atk,def,spd,hp}}]
-  // returns array of turns: {attacker, target, dmg, bossHp, teamHp:[...]}
-  const team=cardTeam.map(c=>({...c,curHp:c.stats.hp,maxHp:c.stats.hp,alive:true}));
-  let bossHp=bossStats.hp;
-  const bossMaxHp=bossStats.hp;
-  const log=[];
-  let turn=0;
-  const maxTurns=200;
+// Upgrade cost: lv 1-10=1, 11-20=2, 21-30=3...
+function upgradeCost(lv){return Math.floor(lv/10)+1;}
 
-  while(bossHp>0&&team.some(c=>c.alive)&&turn<maxTurns){
-    turn++;
-    // Build turn order: all alive cards + boss, sorted by speed desc
-    const actors=[];
-    team.forEach((c,i)=>{if(c.alive)actors.push({type:"card",idx:i,spd:c.stats.spd});});
-    actors.push({type:"boss",spd:bossStats.spd});
-    actors.sort((a,b)=>b.spd-a.spd);
+// Boss data
+const BOSSES=[
+  {name:"史萊姆王",emoji:"👑🟢",base:{atk:25,def:15,spd:20,hp:120},desc:"看似弱小卻異常黏人"},
+  {name:"骷髏騎士",emoji:"💀⚔️",base:{atk:35,def:30,spd:25,hp:180},desc:"不死軍團的先鋒"},
+  {name:"暗影狼王",emoji:"🐺🌑",base:{atk:45,def:22,spd:50,hp:160},desc:"黑夜中的獵手"},
+  {name:"火焰巨人",emoji:"🔥👹",base:{atk:55,def:40,spd:15,hp:280},desc:"燃燒一切的暴怒之軀"},
+  {name:"冰霜女巫",emoji:"❄️🧙‍♀️",base:{atk:42,def:35,spd:38,hp:220},desc:"寒冰封印萬物"},
+  {name:"雷電飛龍",emoji:"⚡🐉",base:{atk:60,def:45,spd:55,hp:300},desc:"天空的霸主"},
+  {name:"深淵領主",emoji:"👿🕳️",base:{atk:65,def:50,spd:30,hp:380},desc:"深淵的統治者"},
+  {name:"血月魔狼",emoji:"🌕🐺",base:{atk:70,def:38,spd:60,hp:340},desc:"滿月之夜的恐懼"},
+  {name:"墮落天使",emoji:"😈👼",base:{atk:75,def:55,spd:45,hp:420},desc:"光與暗的化身"},
+  {name:"終焉之王",emoji:"💀👑",base:{atk:85,def:65,spd:50,hp:500},desc:"一切的終結"},
+];
+function getBossStats(br){const idx=(br-1)%10;const cy=Math.ceil(br/10);const b=BOSSES[idx];const m=1+(cy-1)*0.6;return{...b,idx,cycle:cy,stats:{atk:Math.floor(b.base.atk*m),def:Math.floor(b.base.def*m),spd:Math.floor(b.base.spd*m),hp:Math.floor(b.base.hp*m)}};}
 
-    for(const actor of actors){
-      if(bossHp<=0||!team.some(c=>c.alive))break;
-
-      if(actor.type==="card"){
-        const c=team[actor.idx];
-        if(!c.alive)continue;
-        const dmg=Math.max(1,Math.floor(c.stats.atk-(bossStats.def*0.3))+Math.floor(Math.random()*6)-3);
-        bossHp=Math.max(0,bossHp-dmg);
-        log.push({type:"card_atk",cardIdx:actor.idx,cardName:c.card.name,dmg,bossHp,bossMaxHp,teamHp:team.map(t=>({cur:t.curHp,max:t.maxHp,alive:t.alive}))});
-      } else {
-        // Boss attacks random alive card
-        const alive=team.map((c,i)=>({c,i})).filter(x=>x.c.alive);
-        if(alive.length===0)break;
-        const target=alive[Math.floor(Math.random()*alive.length)];
-        const dmg=Math.max(1,Math.floor(bossStats.atk-(target.c.stats.def*0.3))+Math.floor(Math.random()*8)-4);
-        target.c.curHp=Math.max(0,target.c.curHp-dmg);
-        if(target.c.curHp<=0)target.c.alive=false;
-        log.push({type:"boss_atk",targetIdx:target.i,targetName:target.c.card.name,dmg,bossHp,bossMaxHp,teamHp:team.map(t=>({cur:t.curHp,max:t.maxHp,alive:t.alive}))});
-      }
+function simulateBattle(team,bs){
+  const t=team.map(c=>({...c,curHp:c.stats.hp,maxHp:c.stats.hp,alive:true}));
+  let bHp=bs.hp;const bMax=bs.hp;const log=[];let turn=0;
+  while(bHp>0&&t.some(c=>c.alive)&&turn<200){turn++;
+    const acts=[];t.forEach((c,i)=>{if(c.alive)acts.push({type:"card",idx:i,spd:c.stats.spd});});
+    acts.push({type:"boss",spd:bs.spd});acts.sort((a,b)=>b.spd-a.spd);
+    for(const a of acts){if(bHp<=0||!t.some(c=>c.alive))break;
+      if(a.type==="card"){const c=t[a.idx];if(!c.alive)continue;const d=Math.max(1,Math.floor(c.stats.atk-(bs.def*0.3))+Math.floor(Math.random()*6)-3);bHp=Math.max(0,bHp-d);log.push({type:"card_atk",cardIdx:a.idx,cardName:c.name||c.card?.name||"主角",dmg:d,bossHp:bHp,bossMaxHp:bMax,teamHp:t.map(x=>({cur:x.curHp,max:x.maxHp,alive:x.alive}))});}
+      else{const alive=t.map((c,i)=>({c,i})).filter(x=>x.c.alive);if(!alive.length)break;const tgt=alive[Math.floor(Math.random()*alive.length)];const d=Math.max(1,Math.floor(bs.atk-(tgt.c.stats.def*0.3))+Math.floor(Math.random()*8)-4);tgt.c.curHp=Math.max(0,tgt.c.curHp-d);if(tgt.c.curHp<=0)tgt.c.alive=false;log.push({type:"boss_atk",targetIdx:tgt.i,targetName:tgt.c.name||tgt.c.card?.name||"主角",dmg:d,bossHp:bHp,bossMaxHp:bMax,teamHp:t.map(x=>({cur:x.curHp,max:x.maxHp,alive:x.alive}))});}
     }
   }
-  const win=bossHp<=0;
-  return{log,win,finalBossHp:bossHp,finalTeam:team};
+  return{log,win:bHp<=0};
 }
 
 /* ═══ EXERCISES & SKILLS ═══ */
 const ALL_EX=[{id:"squat",name:"深蹲",icon:"🔥",target:100},{id:"punch",name:"揮拳",icon:"👊",target:100},{id:"grip",name:"握力",icon:"✊",target:100},{id:"tuck_jump",name:"縮腳跳",icon:"🦵",target:50},{id:"high_knee",name:"高抬腿",icon:"🦿",target:100},{id:"precision_jump",name:"精準跳",icon:"🎯",target:50},{id:"stair_jump",name:"跳階梯",icon:"🪜",target:50}];
-const SKILLS=[{id:"king_wrath",name:"王之怒",desc:"被動技能，憤怒時攻擊力+3，同時興奮值提升",lv:5,type:"passive",icon:"🔥"},{id:"iron_legs",name:"鋼鐵之腿",desc:"下肢力量大幅強化，跳躍力永久+10",lv:10,type:"passive",icon:"🦵"},{id:"dominator_hand",name:"支配者之手",desc:"擁有很強的握力，能通過握力鎖死敵人手腕",lv:15,type:"active",icon:"✊"},{id:"shadow_step",name:"幻影步",desc:"移動速度大幅提升，敵人難以捕捉你的身影",lv:25,type:"active",icon:"👻"},{id:"berserker",name:"狂戰士",desc:"HP低於30%時，所有能力值翻倍",lv:35,type:"passive",icon:"⚡"},{id:"titan_body",name:"巨人之軀",desc:"身體硬度超越鋼鐵，物理攻擊幾乎無效",lv:50,type:"passive",icon:"🛡️"},{id:"dragon_fist",name:"龍拳",desc:"將全身力量集中在拳頭，一擊粉碎一切",lv:65,type:"active",icon:"🐉"},{id:"god_speed",name:"神速",desc:"速度突破人類極限，世界在你眼中靜止",lv:80,type:"active",icon:"⚡"},{id:"awakening",name:"覺醒",desc:"超越人類的終極形態，所有能力值無上限突破",lv:100,type:"passive",icon:"👑"}];
+const SKILLS=[{id:"king_wrath",name:"王之怒",desc:"被動技能，憤怒時攻擊力+3",lv:5,type:"passive",icon:"🔥"},{id:"iron_legs",name:"鋼鐵之腿",desc:"下肢力量大幅強化",lv:10,type:"passive",icon:"🦵"},{id:"dominator_hand",name:"支配者之手",desc:"握力鎖死敵人手腕",lv:15,type:"active",icon:"✊"},{id:"shadow_step",name:"幻影步",desc:"移動速度大幅提升",lv:25,type:"active",icon:"👻"},{id:"berserker",name:"狂戰士",desc:"HP低於30%時能力值翻倍",lv:50,type:"passive",icon:"⚡"},{id:"titan_body",name:"巨人之軀",desc:"物理攻擊幾乎無效",lv:100,type:"passive",icon:"🛡️"},{id:"dragon_fist",name:"龍拳",desc:"一擊粉碎一切",lv:200,type:"active",icon:"🐉"},{id:"god_speed",name:"神速",desc:"世界在你眼中靜止",lv:500,type:"active",icon:"⚡"},{id:"awakening",name:"覺醒",desc:"超越人類的終極形態",lv:1000,type:"passive",icon:"👑"}];
 
-function xpFor(l){return l<=1?0:Math.floor(80*Math.pow(l,1.6));}
+// Level cap 1000, slower curve
+function xpFor(l){return l<=1?0:Math.floor(60*Math.pow(l,1.45));}
 function shuf(a,s){const b=[...a];let x=s;for(let i=b.length-1;i>0;i--){x=(x*9301+49297)%233280;const j=Math.floor((x/233280)*(i+1));[b[i],b[j]]=[b[j],b[i]];}return b;}
 function getEx(r){return shuf(ALL_EX,r*7+13).slice(0,4);}
-function getRank(l){if(l>=100)return{t:"武神",c:"#ffd700"};if(l>=80)return{t:"傳說",c:"#ff6b35"};if(l>=65)return{t:"王者",c:"#ef4444"};if(l>=50)return{t:"霸者",c:"#f97316"};if(l>=35)return{t:"英雄",c:"#f59e0b"};if(l>=25)return{t:"勇者",c:"#eab308"};if(l>=15)return{t:"鬥士",c:"#84cc16"};if(l>=10)return{t:"挑戰者",c:"#22c55e"};if(l>=5)return{t:"見習者",c:"#06b6d4"};return{t:"初心者",c:"#94a3b8"};}
+function getRank(l){if(l>=1000)return{t:"武神",c:"#ffd700"};if(l>=500)return{t:"傳說",c:"#ff6b35"};if(l>=200)return{t:"王者",c:"#ef4444"};if(l>=100)return{t:"霸者",c:"#f97316"};if(l>=50)return{t:"英雄",c:"#f59e0b"};if(l>=25)return{t:"勇者",c:"#eab308"};if(l>=15)return{t:"鬥士",c:"#84cc16"};if(l>=10)return{t:"挑戰者",c:"#22c55e"};if(l>=5)return{t:"見習者",c:"#06b6d4"};return{t:"初心者",c:"#94a3b8"};}
 
 /* ═══ SAVE ═══ */
 const SK="fitness_rpg_v2";
-const DEF={level:1,xp:0,gold:0,round:1,hp:100,maxHp:100,curEx:null,progress:{},totalReps:{},stats:{strength:5,stamina:5,agility:5,jump:5,grip:3},skills:[],cleared:0,cards:{},completedAt:null,bossRound:1};
-function load(){try{const s=localStorage.getItem(SK);if(s){const p=JSON.parse(s);return{...DEF,...p,cards:p.cards||{},completedAt:p.completedAt||null,bossRound:p.bossRound||1};}}catch(e){}return{...DEF};}
+const DEF={level:1,xp:0,gold:0,round:1,hp:100,maxHp:100,curEx:null,progress:{},totalReps:{},stats:{strength:5,stamina:5,agility:5,jump:5,grip:3},skills:[],cleared:0,cards:{},completedAt:null,bossRound:1,starMats:{R:0,SR:0,SSR:0},mailbox:[],lastMailDate:null,musicOn:false};
+function load(){try{const s=localStorage.getItem(SK);if(s){const p=JSON.parse(s);return{...DEF,...p,cards:p.cards||{},starMats:p.starMats||{R:0,SR:0,SSR:0},mailbox:p.mailbox||[],lastMailDate:p.lastMailDate||null};}}catch(e){}return{...DEF};}
 function sv(s){try{localStorage.setItem(SK,JSON.stringify(s));}catch(e){}}
 
 function canNextRound(ca){if(!ca)return false;const c=new Date(ca),n=new Date(),r=new Date(c);r.setHours(4,0,0,0);if(c.getHours()>=4)r.setDate(r.getDate()+1);return n>=r;}
 function getTimeToReset(){const n=new Date(),t=new Date(n);t.setHours(4,0,0,0);if(n.getHours()>=4)t.setDate(t.getDate()+1);const d=t-n;return`${Math.floor(d/3600000)}時${Math.floor((d%3600000)/60000)}分${Math.floor((d%60000)/1000)}秒`;}
-function calcSkipRewards(f,t){let x=0,g=0;for(let r=f;r<t;r++){shuf(ALL_EX,r*7+13).slice(0,4).forEach(e=>{x+=Math.floor(e.target*2);g+=Math.floor(e.target*0.3)+15;});}return{xp:x,gold:g};}
+function calcSkipRewards(f,t){let x=0,g=0;for(let r=f;r<t;r++){shuf(ALL_EX,r*7+13).slice(0,4).forEach(e=>{x+=Math.floor(e.target*2.5);g+=Math.floor(e.target*0.4)+18;});}return{xp:x,gold:g};}
 
-/* ═══ CARD IMAGE ═══ */
-function CImg({card,sz="full",lvl,sel,dim}){
-  const[err,setErr]=useState(false);const rc=RC[card.rarity];
+// Check daily mail
+function checkMail(gs){
+  const now=new Date();const today=now.toDateString();
+  if(gs.lastMailDate===today)return gs;
+  const mail={id:Date.now(),text:"每日獎勵：50 金幣",gold:50,claimed:false,time:now.toISOString()};
+  return{...gs,mailbox:[mail,...(gs.mailbox||[]).slice(0,29)],lastMailDate:today};
+}
+
+// Random star material drop from task completion
+function rollMaterial(){
+  if(Math.random()>0.5)return null;// 50% chance
+  const r=Math.random();
+  if(r<0.05)return"SSR";
+  if(r<0.15)return"SR";
+  return"R";
+}
+
+/* ═══ COMPONENTS ═══ */
+function CImg({card,sz="full",lvl,sel,dim,stars}){
+  const[err,setErr]=useState(false);const rc=card.rarity?RC[card.rarity]:{color:"#22d3ee",border:"#06b6d4",glow:"rgba(6,182,212,0.4)",bg:"#164e63"};
   const w=sz==="xs"?56:sz==="sm"?76:sz==="md"?110:150,h=Math.floor(w*4/3);
+  const starStr=stars?"★".repeat(stars):"";
   return(<div style={{width:w,height:h,borderRadius:sz==="xs"?6:sz==="sm"?8:12,overflow:"hidden",position:"relative",border:`2.5px solid ${sel?"#4ade80":rc.border}`,boxShadow:sel?`0 0 16px rgba(34,197,94,0.5)`:`0 0 ${sz==="sm"?8:14}px ${rc.glow}`,flexShrink:0,opacity:dim?0.35:1,transition:"all 0.2s"}}>
     {!err?<img src={card.img} alt="" style={{width:"100%",height:"100%",objectFit:"cover",display:"block"}} onError={()=>setErr(true)}/>:
-    <div style={{width:"100%",height:"100%",background:rc.bg,display:"flex",alignItems:"center",justifyContent:"center",fontSize:w*0.3,color:"rgba(255,255,255,0.6)",fontWeight:900}}>{card.name[0]}</div>}
-    <div style={{position:"absolute",top:2,left:2,padding:"0px 4px",borderRadius:3,background:rc.border,color:"#fff",fontSize:sz==="xs"?6:sz==="sm"?8:11,fontWeight:900}}>{card.rarity}</div>
-    {lvl&&<div style={{position:"absolute",bottom:2,right:2,padding:"0px 4px",borderRadius:3,background:"rgba(0,0,0,0.75)",color:"#fbbf24",fontSize:sz==="xs"?6:sz==="sm"?8:10,fontWeight:700}}>Lv.{lvl}</div>}
+    <div style={{width:"100%",height:"100%",background:rc.bg,display:"flex",alignItems:"center",justifyContent:"center",fontSize:w*0.25,color:"rgba(255,255,255,0.6)",fontWeight:900}}>{card.name?card.name[0]:"?"}</div>}
+    {card.rarity&&<div style={{position:"absolute",top:2,left:2,padding:"0px 4px",borderRadius:3,background:rc.border,color:"#fff",fontSize:sz==="xs"?6:sz==="sm"?7:10,fontWeight:900}}>{card.rarity}</div>}
+    {!card.rarity&&<div style={{position:"absolute",top:2,left:2,padding:"0px 4px",borderRadius:3,background:"#06b6d4",color:"#fff",fontSize:sz==="xs"?6:sz==="sm"?7:10,fontWeight:900}}>主角</div>}
+    {lvl&&<div style={{position:"absolute",bottom:2,right:2,padding:"0px 4px",borderRadius:3,background:"rgba(0,0,0,0.75)",color:"#fbbf24",fontSize:sz==="xs"?6:sz==="sm"?7:9,fontWeight:700}}>Lv.{lvl}</div>}
+    {starStr&&<div style={{position:"absolute",bottom:2,left:2,fontSize:sz==="xs"?6:sz==="sm"?7:9,color:"#fbbf24",textShadow:"0 0 4px rgba(0,0,0,0.8)"}}>{starStr}</div>}
   </div>);
 }
+function HpBar({cur,max,color="#22c55e",h=6}){const p=max>0?(cur/max)*100:0;const c=p>60?color:p>30?"#f59e0b":"#ef4444";return(<div style={{width:"100%",height:h,borderRadius:h/2,background:"rgba(255,255,255,0.08)",overflow:"hidden"}}><div style={{height:"100%",borderRadius:h/2,width:`${Math.max(p,0)}%`,background:c,transition:"width 0.3s"}}/></div>);}
 
-/* ═══ HP BAR COMPONENT ═══ */
-function HpBar({cur,max,color="#22c55e",h=6}){
-  const pct=max>0?(cur/max)*100:0;
-  const c2=pct>60?color:pct>30?"#f59e0b":"#ef4444";
-  return(<div style={{width:"100%",height:h,borderRadius:h/2,background:"rgba(255,255,255,0.08)",overflow:"hidden"}}>
-    <div style={{height:"100%",borderRadius:h/2,width:`${Math.max(pct,0)}%`,background:c2,transition:"width 0.3s",boxShadow:`0 0 6px ${c2}44`}}/>
-  </div>);
-}
-
-/* ═══════════════════════════════════════
-   MAIN APP
-   ═══════════════════════════════════════ */
+/* ═══ MAIN APP ═══ */
 export default function App(){
-  const[gs,setGs]=useState(()=>{const d=load();if(!d.curEx)d.curEx=getEx(d.round);return d;});
+  const[gs,setGs]=useState(()=>{let d=load();if(!d.curEx)d.curEx=getEx(d.round);d=checkMail(d);return d;});
   const[vw,setVw]=useState("train");
   const[inp,setInp]=useState({});
   const[notif,setNotif]=useState(null);
@@ -156,140 +132,124 @@ export default function App(){
   const[secretTap,setSecretTap]=useState(0);
   const[showSecret,setShowSecret]=useState(false);
   const[skipTo,setSkipTo]=useState("");
-  const[midnightStr,setMidnightStr]=useState("");
-  // Battle states
-  const[btlPick,setBtlPick]=useState([]);// selected card ids for battle
-  const[btlPhase,setBtlPhase]=useState("prep");// prep|fighting|result
+  const[midStr,setMidStr]=useState("");
+  const[btlPick,setBtlPick]=useState([]);
+  const[btlPhase,setBtlPhase]=useState("prep");
   const[btlLog,setBtlLog]=useState([]);
   const[btlStep,setBtlStep]=useState(0);
   const[btlResult,setBtlResult]=useState(null);
   const[btlCanSkip,setBtlCanSkip]=useState(false);
-  const btlTimer=useRef(null);
-  const skipTimerRef=useRef(null);
-
-  const nr=useRef(null);
-  const tapTimer=useRef(null);
+  const[showMail,setShowMail]=useState(false);
+  const btlTimer=useRef(null);const skipRef=useRef(null);const nr=useRef(null);const tapRef=useRef(null);const audioRef=useRef(null);
 
   useEffect(()=>{sv(gs);},[gs]);
-  useEffect(()=>{if(!gs.completedAt||canNextRound(gs.completedAt))return;const iv=setInterval(()=>setMidnightStr(getTimeToReset()),1000);return()=>clearInterval(iv);},[gs.completedAt]);
-
-  // Cleanup battle timer
-  useEffect(()=>()=>{if(btlTimer.current)clearInterval(btlTimer.current);if(skipTimerRef.current)clearTimeout(skipTimerRef.current);},[]);
+  useEffect(()=>{if(!gs.completedAt||canNextRound(gs.completedAt))return;const iv=setInterval(()=>setMidStr(getTimeToReset()),1000);return()=>clearInterval(iv);},[gs.completedAt]);
+  useEffect(()=>()=>{if(btlTimer.current)clearInterval(btlTimer.current);if(skipRef.current)clearTimeout(skipRef.current);},[]);
 
   const xpN=xpFor(gs.level+1),xp0=xpFor(gs.level),xpP=xpN>xp0?((gs.xp-xp0)/(xpN-xp0))*100:100;
   const rank=getRank(gs.level),exs=gs.curEx||getEx(gs.round),allDone=exs.every(e=>(gs.progress[e.id]||0)>=e.target);
   const boss=getBossStats(gs.bossRound);
-  const ownedCards=Object.keys(gs.cards);
+  const pStats=playerStats(gs.stats,gs.level);
+  const pCP=calcCP(pStats);
+  const PLAYER_CARD={id:"player",name:"主角",img:"/player.jpg",rarity:null};
+  const unclaimedMail=(gs.mailbox||[]).filter(m=>!m.claimed).length;
 
   function noti(t,ty="info"){if(nr.current)clearTimeout(nr.current);setNotif({text:t,type:ty});nr.current=setTimeout(()=>setNotif(null),3000);}
 
   function doEx(ex){
     const v=parseInt(inp[ex.id])||0;if(v<=0){setShkId(ex.id);setTimeout(()=>setShkId(null),500);return;}
     const cur=gs.progress[ex.id]||0,rem=ex.target-cur;if(rem<=0)return;
-    const reps=Math.min(v,rem),ratio=reps/ex.target,xpG=Math.floor(reps*(2+gs.level*0.15)),gG=Math.floor(reps*0.3),just=cur+reps>=ex.target,bonus=just?15+gs.level:0;
-    setGs(p=>{const np={...p.progress,[ex.id]:(p.progress[ex.id]||0)+reps},nt={...p.totalReps,[ex.id]:(p.totalReps[ex.id]||0)+reps},ns={...p.stats};
+    const reps=Math.min(v,rem),ratio=reps/ex.target;
+    const xpG=Math.floor(reps*(2.5+gs.level*0.18));
+    const gG=Math.floor(reps*0.4);
+    const just=cur+reps>=ex.target;
+    const bonus=just?18+Math.floor(gs.level*0.8):0;
+
+    // Roll for star material on task completion
+    let matDrop=null;
+    if(just)matDrop=rollMaterial();
+
+    setGs(p=>{
+      const np={...p.progress,[ex.id]:(p.progress[ex.id]||0)+reps},nt={...p.totalReps,[ex.id]:(p.totalReps[ex.id]||0)+reps},ns={...p.stats};
       if(ex.id==="squat"||ex.id==="high_knee"||ex.id==="stair_jump"){ns.stamina+=Math.ceil(ratio*2);ns.jump+=Math.ceil(ratio);}
       else if(ex.id==="punch"){ns.strength+=Math.ceil(ratio*2);ns.agility+=Math.ceil(ratio);}
       else if(ex.id==="grip"){ns.grip+=Math.ceil(ratio*2);ns.strength+=Math.ceil(ratio);}
       else{ns.agility+=Math.ceil(ratio);ns.jump+=Math.ceil(ratio);}
       let nX=p.xp+xpG+(just?bonus*2:0),nL=p.level,nM=p.maxHp,lu=false;
-      while(nL<100&&nX>=xpFor(nL+1)){nL++;nM+=5;lu=true;}
+      while(nL<1000&&nX>=xpFor(nL+1)){nL++;nM+=5;lu=true;}
       const nsk=[...(p.skills||[])];let su=null;SKILLS.forEach(s=>{if(!nsk.includes(s.id)&&nL>=s.lv){nsk.push(s.id);su=s;}});
       if(lu)setTimeout(()=>{setLvUpPop(true);setTimeout(()=>setLvUpPop(false),2500);},200);
       if(su)setTimeout(()=>setSkPop(su),lu?2800:200);
-      return{...p,progress:np,totalReps:nt,stats:ns,xp:nX,level:nL,maxHp:nM,hp:Math.min(p.hp+(just?10:2),nM),gold:p.gold+gG+bonus,skills:nsk,completedAt:Object.values(np).length===exs.length&&exs.every(e2=>(np[e2.id]||0)>=e2.target)?new Date().toISOString():p.completedAt};
+      const newMats={...p.starMats};
+      if(matDrop)newMats[matDrop]=(newMats[matDrop]||0)+1;
+      return{...p,progress:np,totalReps:nt,stats:ns,xp:nX,level:nL,maxHp:nM,hp:Math.min(p.hp+(just?10:2),nM),gold:p.gold+gG+bonus,skills:nsk,starMats:newMats,completedAt:exs.every(e2=>(np[e2.id]||0)>=e2.target)?new Date().toISOString():p.completedAt};
     });
     setInp(p=>({...p,[ex.id]:""}));setGP(true);setTimeout(()=>setGP(false),500);
-    noti(`+${xpG} XP　+${gG+bonus} 🪙${just?"　🔥 完成！":""}`,just?"success":"info");
+    let msg=`+${xpG} XP +${gG+bonus}🪙`;
+    if(just)msg+=" 🔥完成！";
+    if(matDrop)msg+=` +1${matDrop}素材`;
+    noti(msg,just?"success":"info");
   }
 
-  function nextRd(){
-    if(gs.completedAt&&!canNextRound(gs.completedAt)){noti("需等到凌晨 04:00 才能進入下一關！");return;}
-    setGs(p=>{const n=p.round+1;return{...p,round:n,progress:{},curEx:getEx(n),cleared:p.cleared+1,completedAt:null};});setRdClr(false);noti("🔥 新挑戰開始！","success");
-  }
+  function nextRd(){if(gs.completedAt&&!canNextRound(gs.completedAt)){noti("需等到 04:00！");return;}setGs(p=>{const n=p.round+1;return{...p,round:n,progress:{},curEx:getEx(n),cleared:p.cleared+1,completedAt:null};});setRdClr(false);noti("🔥 新挑戰開始！","success");}
 
-  function doPull(cnt){if(gs.gold<cnt){noti("金幣不足！");return;}setPulling(true);
-    setTimeout(()=>{const res=cnt===1?[pullOne()]:pullTen();
-      setGs(p=>{const nc={...p.cards};res.forEach(c=>{if(nc[c.id])nc[c.id]={...nc[c.id],copies:nc[c.id].copies+1};else nc[c.id]={level:1,copies:0};});return{...p,gold:p.gold-cnt,cards:nc};});
-      setPullRes(res);setPulling(false);},800);
-  }
+  function doPull(cnt){if(gs.gold<cnt){noti("金幣不足！");return;}setPulling(true);setTimeout(()=>{const res=cnt===1?[pullOne()]:pullTen();setGs(p=>{const nc={...p.cards};res.forEach(c=>{if(nc[c.id])nc[c.id]={...nc[c.id],copies:nc[c.id].copies+1};else nc[c.id]={level:1,copies:0,stars:0};});return{...p,gold:p.gold-cnt,cards:nc};});setPullRes(res);setPulling(false);},800);}
 
   function upCard(cid,max){
     setGs(p=>{const cd=p.cards[cid];if(!cd||cd.copies<1)return p;
-      if(max)return{...p,cards:{...p.cards,[cid]:{level:cd.level+cd.copies,copies:0}}};
-      return{...p,cards:{...p.cards,[cid]:{level:cd.level+1,copies:cd.copies-1}}};
+      const cost=upgradeCost(cd.level);
+      if(max){let lv=cd.level,cp=cd.copies;while(cp>=upgradeCost(lv)){cp-=upgradeCost(lv);lv++;}return{...p,cards:{...p.cards,[cid]:{...cd,level:lv,copies:cp}}};}
+      if(cd.copies<cost){noti(`需要 ${cost} 個碎片！`);return p;}
+      return{...p,cards:{...p.cards,[cid]:{...cd,level:cd.level+1,copies:cd.copies-cost}}};
     });noti("🔥 升級成功！","success");
+  }
+
+  function starUp(cid){
+    const card=CARD_POOL.find(c=>c.id===cid);if(!card)return;
+    const cd=gs.cards[cid];if(!cd||cd.stars>=5)return;
+    const rar=card.rarity;const mats=gs.starMats[rar]||0;
+    if(mats<10){noti(`需要 10 個${rar}升星素材（目前${mats}個）`);return;}
+    setGs(p=>({...p,cards:{...p.cards,[cid]:{...p.cards[cid],stars:(p.cards[cid].stars||0)+1}},starMats:{...p.starMats,[rar]:p.starMats[rar]-10}}));
+    noti("⭐ 升星成功！","success");
+  }
+
+  function claimMail(id){setGs(p=>({...p,gold:p.gold+50,mailbox:(p.mailbox||[]).map(m=>m.id===id?{...m,claimed:true}:m)}));noti("+50 🪙","success");}
+
+  function toggleBtlCard(cid){setBtlPick(p=>p.includes(cid)?p.filter(x=>x!==cid):p.length<3?[...p,cid]:p);}
+
+  function startBattle(){
+    const pS=playerStats(gs.stats,gs.level);
+    const team=[{name:"主角",card:PLAYER_CARD,stats:pS}];
+    btlPick.forEach(cid=>{const card=CARD_POOL.find(c=>c.id===cid);const cd=gs.cards[cid];team.push({name:card.name,card,stats:cStats(card,cd.level,cd.stars||0)});});
+    const result=simulateBattle(team,boss.stats);
+    setBtlLog(result.log);setBtlResult(result);setBtlStep(0);setBtlPhase("fighting");setBtlCanSkip(false);
+    let step=0;btlTimer.current=setInterval(()=>{step++;if(step>=result.log.length){clearInterval(btlTimer.current);setBtlStep(result.log.length-1);setTimeout(()=>setBtlPhase("result"),600);return;}setBtlStep(step);},500);
+    skipRef.current=setTimeout(()=>setBtlCanSkip(true),3000);
+  }
+  function skipBattle(){if(btlTimer.current)clearInterval(btlTimer.current);if(skipRef.current)clearTimeout(skipRef.current);if(btlLog.length>0)setBtlStep(btlLog.length-1);setTimeout(()=>setBtlPhase("result"),200);}
+  function claimBtl(){
+    if(btlResult?.win){const gR=5+Math.floor(gs.bossRound*1.5);const xR=10+gs.bossRound*3;
+      setGs(p=>{let nX=p.xp+xR,nL=p.level,nM=p.maxHp;while(nL<1000&&nX>=xpFor(nL+1)){nL++;nM+=5;}return{...p,gold:p.gold+gR,xp:nX,level:nL,maxHp:nM,bossRound:p.bossRound+1};});
+      noti(`🏆 +${xR}XP +${gR}🪙`,"success");}
+    setBtlPhase("prep");setBtlPick([]);setBtlLog([]);setBtlStep(0);setBtlResult(null);setBtlCanSkip(false);
+  }
+
+  function toggleMusic(){
+    setGs(p=>({...p,musicOn:!p.musicOn}));
+    if(audioRef.current){if(gs.musicOn)audioRef.current.pause();else{audioRef.current.play().catch(()=>{});}}
   }
 
   function resetAll(){if(window.confirm("⚠️ 確定重置？")){localStorage.removeItem(SK);setGs({...DEF,curEx:getEx(1)});setInp({});}}
 
-  /* ═══ BATTLE FUNCTIONS ═══ */
-  function toggleBtlCard(cid){
-    setBtlPick(p=>p.includes(cid)?p.filter(x=>x!==cid):p.length<3?[...p,cid]:p);
-  }
-
-  function startBattle(){
-    if(btlPick.length===0){noti("請至少選擇 1 張卡片！");return;}
-    const team=btlPick.map(cid=>{
-      const card=CARD_POOL.find(c=>c.id===cid);
-      const stats=cStats(card,gs.cards[cid].level);
-      return{card,stats};
-    });
-    const result=simulateBattle(team,boss.stats);
-    setBtlLog(result.log);
-    setBtlResult(result);
-    setBtlStep(0);
-    setBtlPhase("fighting");
-    setBtlCanSkip(false);
-
-    // Auto-advance turns
-    let step=0;
-    btlTimer.current=setInterval(()=>{
-      step++;
-      if(step>=result.log.length){
-        clearInterval(btlTimer.current);
-        setBtlStep(result.log.length-1);
-        setTimeout(()=>setBtlPhase("result"),600);
-        return;
-      }
-      setBtlStep(step);
-    },500);
-
-    // Show skip after 3 seconds
-    skipTimerRef.current=setTimeout(()=>setBtlCanSkip(true),3000);
-  }
-
-  function skipBattle(){
-    if(btlTimer.current)clearInterval(btlTimer.current);
-    if(skipTimerRef.current)clearTimeout(skipTimerRef.current);
-    if(btlLog.length>0)setBtlStep(btlLog.length-1);
-    setTimeout(()=>setBtlPhase("result"),200);
-  }
-
-  function claimBattleReward(){
-    if(!btlResult)return;
-    if(btlResult.win){
-      const goldR=20+gs.bossRound*5;
-      const xpR=50+gs.bossRound*10;
-      setGs(p=>{
-        let nX=p.xp+xpR,nL=p.level,nM=p.maxHp,lu=false;
-        while(nL<100&&nX>=xpFor(nL+1)){nL++;nM+=5;lu=true;}
-        if(lu)setTimeout(()=>{setLvUpPop(true);setTimeout(()=>setLvUpPop(false),2500);},200);
-        return{...p,gold:p.gold+goldR,xp:nX,level:nL,maxHp:nM,bossRound:p.bossRound+1};
-      });
-      noti(`🏆 +${xpR} XP +${goldR} 🪙`,"success");
-    }
-    setBtlPhase("prep");setBtlPick([]);setBtlLog([]);setBtlStep(0);setBtlResult(null);setBtlCanSkip(false);
-  }
-
-  const hpP=(gs.hp/gs.maxHp)*100,owned=Object.keys(gs.cards).length;
-  const detData=cDet?CARD_POOL.find(c=>c.id===cDet.id):null;
-  // Current battle display state
+  const hpP=(gs.hp/gs.maxHp)*100;const owned=Object.keys(gs.cards).length;const detData=cDet?CARD_POOL.find(c=>c.id===cDet.id):null;
   const curLog=btlLog[btlStep]||null;
+  // Team CP for battle
+  const teamCP=pCP+btlPick.reduce((s,cid)=>{const c=CARD_POOL.find(x=>x.id===cid);const cd=gs.cards[cid];return s+(c&&cd?cardCP(c,cd.level,cd.stars||0):0);},0);
 
   return(
     <div style={{minHeight:"100vh",minHeight:"100dvh",background:"#080000",color:"#f0e6e6",fontFamily:"'Noto Sans TC',sans-serif",position:"relative",overflow:"hidden",overflowX:"hidden",width:"100%",WebkitTapHighlightColor:"transparent",overscrollBehavior:"none"}}>
       <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;700;900&family=Black+Ops+One&display=swap" rel="stylesheet"/>
+      <audio ref={audioRef} src="/music/bgm.mp3" loop preload="none"/>
       <style>{`
         *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
         html,body{overscroll-behavior:none;margin:0;padding:0;overflow-x:hidden;width:100%}
@@ -308,225 +268,209 @@ export default function App(){
         @keyframes cFlip{0%{transform:rotateY(180deg) scale(0.5);opacity:0}60%{transform:rotateY(0) scale(1.1);opacity:1}100%{transform:rotateY(0) scale(1);opacity:1}}
         @keyframes hitShake{0%,100%{transform:translateX(0)}25%{transform:translateX(-6px)}50%{transform:translateX(6px)}75%{transform:translateX(-3px)}}
         @keyframes dmgFloat{0%{transform:translateY(0);opacity:1}100%{transform:translateY(-30px);opacity:0}}
-        @keyframes slashIn{0%{transform:scaleX(0);opacity:0}50%{transform:scaleX(1.2);opacity:1}100%{transform:scaleX(1);opacity:0}}
       `}</style>
 
       {/* Fire */}
-      <div style={{position:"fixed",inset:0,pointerEvents:"none",zIndex:0,overflow:"hidden"}}>
-        {Array.from({length:15},(_,i)=>(<div key={i} style={{position:"absolute",bottom:"-10px",left:`${(i*6.8)%100}%`,width:`${2+(i%4)*1.5}px`,height:`${2+(i%4)*1.5}px`,borderRadius:"50%",background:`radial-gradient(circle,${i%3===0?"#ef4444":i%3===1?"#f97316":"#fbbf24"},transparent)`,"--op":0.3+(i%5)*0.12,opacity:0.3+(i%5)*0.12,animation:`fireRise ${3+(i%5)*1.2}s ${(i*0.4)%5}s linear infinite`}}/>))}
-      </div>
+      <div style={{position:"fixed",inset:0,pointerEvents:"none",zIndex:0,overflow:"hidden"}}>{Array.from({length:12},(_,i)=>(<div key={i} style={{position:"absolute",bottom:"-10px",left:`${(i*8.5)%100}%`,width:`${2+(i%4)*1.5}px`,height:`${2+(i%4)*1.5}px`,borderRadius:"50%",background:`radial-gradient(circle,${i%3===0?"#ef4444":i%3===1?"#f97316":"#fbbf24"},transparent)`,"--op":0.3+(i%5)*0.1,opacity:0.3+(i%5)*0.1,animation:`fireRise ${3+(i%5)*1.2}s ${(i*0.4)%5}s linear infinite`}}/>))}</div>
 
-      {/* ═══ OVERLAYS (level up, skill, round clear — unchanged) ═══ */}
-      {lvUpPop&&<div style={{position:"fixed",inset:0,zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(0,0,0,0.8)",backdropFilter:"blur(10px)"}}><div style={{animation:"lvlA 0.6s ease-out",textAlign:"center",padding:"44px 52px",background:"linear-gradient(135deg,rgba(239,68,68,0.12),rgba(249,115,22,0.08))",border:"2px solid rgba(239,68,68,0.5)",borderRadius:"24px"}}><div style={{fontSize:"17px",color:"#f97316",letterSpacing:"6px"}}>⚔️ LEVEL UP ⚔️</div><div style={{fontFamily:"'Black Ops One',cursive",fontSize:"72px",background:"linear-gradient(135deg,#ef4444,#f97316,#fbbf24,#ef4444)",backgroundSize:"300% 300%",animation:"burnText 3s ease infinite",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"}}>Lv.{gs.level}</div><div style={{color:"#fca5a5",marginTop:"6px",fontSize:"13px"}}>{rank.t}</div></div></div>}
-      {skPop&&<div style={{position:"fixed",inset:0,zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(0,0,0,0.85)",backdropFilter:"blur(10px)"}} onClick={()=>setSkPop(null)}><div style={{animation:"skA 0.7s ease-out",textAlign:"center",padding:"36px 40px",background:"linear-gradient(135deg,rgba(239,68,68,0.15),rgba(249,115,22,0.1))",border:"2px solid rgba(249,115,22,0.5)",borderRadius:"24px",maxWidth:"300px"}}><div style={{fontSize:"14px",color:"#f97316",letterSpacing:"8px",marginBottom:"14px"}}>《新技能》</div><div style={{fontSize:"56px",marginBottom:"10px"}}>{skPop.icon}</div><div style={{fontSize:"24px",fontWeight:900,color:"#fbbf24",marginBottom:"10px"}}>[{skPop.name}]</div><div style={{fontSize:"13px",color:"#fca5a5",lineHeight:1.8}}>{skPop.desc}</div><div style={{marginTop:"14px",color:"#78716c",fontSize:"11px"}}>點擊關閉</div></div></div>}
-      {rdClr&&<div style={{position:"fixed",inset:0,zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(0,0,0,0.85)",backdropFilter:"blur(10px)"}}><div style={{animation:"lvlA 0.5s ease-out",textAlign:"center",padding:"36px 44px",background:"linear-gradient(135deg,rgba(34,197,94,0.12),rgba(22,163,74,0.08))",border:"2px solid rgba(34,197,94,0.5)",borderRadius:"24px"}}><div style={{fontSize:"44px"}}>🔥</div><div style={{fontSize:"22px",fontWeight:900,color:"#4ade80",margin:"6px 0"}}>關卡完成！</div><div style={{color:"#86efac",fontSize:"14px",marginBottom:"18px"}}>第 {gs.round} 關通過</div><button onClick={nextRd} style={{padding:"12px 36px",borderRadius:"14px",border:"2px solid rgba(34,197,94,0.6)",background:"linear-gradient(135deg,rgba(34,197,94,0.2),rgba(22,163,74,0.15))",color:"#4ade80",fontWeight:900,fontSize:"17px",cursor:"pointer",fontFamily:"inherit",animation:"pulse 2s infinite"}}>⚔️ 下一關</button></div></div>}
+      {/* ═══ OVERLAYS ═══ */}
+      {lvUpPop&&<div style={{position:"fixed",inset:0,zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(0,0,0,0.8)",backdropFilter:"blur(10px)"}}><div style={{animation:"lvlA 0.6s ease-out",textAlign:"center",padding:"40px 48px",background:"linear-gradient(135deg,rgba(239,68,68,0.12),rgba(249,115,22,0.08))",border:"2px solid rgba(239,68,68,0.5)",borderRadius:"24px"}}><div style={{fontSize:"16px",color:"#f97316",letterSpacing:"6px"}}>⚔️ LEVEL UP ⚔️</div><div style={{fontFamily:"'Black Ops One',cursive",fontSize:"68px",background:"linear-gradient(135deg,#ef4444,#f97316,#fbbf24,#ef4444)",backgroundSize:"300% 300%",animation:"burnText 3s ease infinite",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"}}>Lv.{gs.level}</div><div style={{color:"#fca5a5",marginTop:"6px",fontSize:"12px"}}>{rank.t}</div></div></div>}
+      {skPop&&<div style={{position:"fixed",inset:0,zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(0,0,0,0.85)",backdropFilter:"blur(10px)"}} onClick={()=>setSkPop(null)}><div style={{animation:"skA 0.7s ease-out",textAlign:"center",padding:"32px 36px",background:"linear-gradient(135deg,rgba(239,68,68,0.15),rgba(249,115,22,0.1))",border:"2px solid rgba(249,115,22,0.5)",borderRadius:"24px",maxWidth:"280px"}}><div style={{fontSize:"13px",color:"#f97316",letterSpacing:"6px",marginBottom:"12px"}}>《新技能》</div><div style={{fontSize:"48px",marginBottom:"8px"}}>{skPop.icon}</div><div style={{fontSize:"22px",fontWeight:900,color:"#fbbf24",marginBottom:"8px"}}>[{skPop.name}]</div><div style={{fontSize:"12px",color:"#fca5a5",lineHeight:1.8}}>{skPop.desc}</div><div style={{marginTop:"12px",color:"#78716c",fontSize:"10px"}}>點擊關閉</div></div></div>}
+      {rdClr&&<div style={{position:"fixed",inset:0,zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(0,0,0,0.85)",backdropFilter:"blur(10px)"}}><div style={{animation:"lvlA 0.5s ease-out",textAlign:"center",padding:"32px 40px",background:"linear-gradient(135deg,rgba(34,197,94,0.12),rgba(22,163,74,0.08))",border:"2px solid rgba(34,197,94,0.5)",borderRadius:"24px"}}><div style={{fontSize:"40px"}}>🔥</div><div style={{fontSize:"20px",fontWeight:900,color:"#4ade80",margin:"6px 0"}}>關卡完成！</div><button onClick={nextRd} style={{padding:"12px 32px",borderRadius:"14px",border:"2px solid rgba(34,197,94,0.6)",background:"linear-gradient(135deg,rgba(34,197,94,0.2),rgba(22,163,74,0.15))",color:"#4ade80",fontWeight:900,fontSize:"16px",cursor:"pointer",fontFamily:"inherit",animation:"pulse 2s infinite"}}>⚔️ 下一關</button></div></div>}
 
-      {/* ═══ SHOP ═══ */}
+      {/* SHOP */}
       {shop&&!pullRes&&<div style={{position:"fixed",inset:0,zIndex:250,background:"rgba(0,0,0,0.93)",backdropFilter:"blur(12px)",overflow:"auto",WebkitOverflowScrolling:"touch"}}><div style={{maxWidth:460,margin:"0 auto",padding:"54px 16px 30px"}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"14px"}}><div style={{fontSize:"18px",fontWeight:900,color:"#fbbf24"}}>🎰 抽獎商店</div><button onClick={()=>setShop(false)} style={{background:"none",border:"none",color:"#78716c",fontSize:"24px",cursor:"pointer"}}>✕</button></div>
-        <div style={{display:"flex",alignItems:"center",gap:"6px",marginBottom:"14px",padding:"8px 14px",borderRadius:"10px",background:"rgba(251,191,36,0.08)",border:"1px solid rgba(251,191,36,0.2)"}}><span style={{fontSize:"16px"}}>🪙</span><span style={{fontFamily:"'Black Ops One',cursive",color:"#fbbf24",fontSize:"18px"}}>{gs.gold}</span></div>
-        <div style={{padding:"18px",borderRadius:"16px",background:"linear-gradient(135deg,rgba(251,191,36,0.06),rgba(239,68,68,0.04))",border:"1px solid rgba(251,191,36,0.15)",marginBottom:"14px",textAlign:"center"}}>
-          <div style={{fontSize:"14px",fontWeight:900,color:"#fbbf24",letterSpacing:"4px",marginBottom:"10px"}}>《 第一彈卡池 》</div>
-          <div style={{display:"flex",justifyContent:"center",gap:"6px",marginBottom:"12px"}}>{CARD_POOL.filter(c=>c.rarity==="SSR").map(c=>(<CImg key={c.id} card={c} sz="sm"/>))}</div>
-          <div style={{fontSize:"11px",color:"#a8a29e"}}>SSR 3% ｜ SR 17% ｜ R 80%</div><div style={{fontSize:"10px",color:"#78716c",marginTop:"3px"}}>10抽保底至少1張SR</div>
+        <div style={{display:"flex",alignItems:"center",gap:"6px",marginBottom:"14px",padding:"8px 14px",borderRadius:"10px",background:"rgba(251,191,36,0.08)",border:"1px solid rgba(251,191,36,0.2)"}}><span>🪙</span><span style={{fontFamily:"'Black Ops One',cursive",color:"#fbbf24",fontSize:"18px"}}>{gs.gold}</span></div>
+        <div style={{padding:"16px",borderRadius:"16px",background:"linear-gradient(135deg,rgba(251,191,36,0.06),rgba(239,68,68,0.04))",border:"1px solid rgba(251,191,36,0.15)",marginBottom:"14px",textAlign:"center"}}>
+          <div style={{fontSize:"13px",fontWeight:900,color:"#fbbf24",letterSpacing:"4px",marginBottom:"8px"}}>《 第一彈卡池 》</div>
+          <div style={{display:"flex",justifyContent:"center",gap:"6px",marginBottom:"10px"}}>{CARD_POOL.filter(c=>c.rarity==="SSR").map(c=>(<CImg key={c.id} card={c} sz="sm"/>))}</div>
+          <div style={{fontSize:"10px",color:"#a8a29e"}}>SSR 3% ｜ SR 17% ｜ R 80%</div>
         </div>
-        <div style={{display:"flex",gap:"10px",marginBottom:"18px"}}>
-          <button onClick={()=>doPull(1)} disabled={pulling||gs.gold<1} style={{flex:1,padding:"13px",borderRadius:"14px",border:"2px solid rgba(251,191,36,0.4)",background:"linear-gradient(135deg,rgba(251,191,36,0.1),rgba(249,115,22,0.06))",color:"#fbbf24",fontWeight:900,fontSize:"16px",cursor:"pointer",fontFamily:"inherit",opacity:gs.gold<1?0.4:1}}>{pulling?"...":"單抽 🪙1"}</button>
-          <button onClick={()=>doPull(10)} disabled={pulling||gs.gold<10} style={{flex:1,padding:"13px",borderRadius:"14px",border:"2px solid rgba(239,68,68,0.4)",background:"linear-gradient(135deg,rgba(239,68,68,0.12),rgba(249,115,22,0.08))",color:"#f97316",fontWeight:900,fontSize:"16px",cursor:"pointer",fontFamily:"inherit",opacity:gs.gold<10?0.4:1}}>{pulling?"...":"十抽 🪙10"}</button>
+        <div style={{display:"flex",gap:"10px",marginBottom:"16px"}}>
+          <button onClick={()=>doPull(1)} disabled={pulling||gs.gold<1} style={{flex:1,padding:"12px",borderRadius:"14px",border:"2px solid rgba(251,191,36,0.4)",background:"linear-gradient(135deg,rgba(251,191,36,0.1),rgba(249,115,22,0.06))",color:"#fbbf24",fontWeight:900,fontSize:"15px",cursor:"pointer",fontFamily:"inherit",opacity:gs.gold<1?0.4:1}}>單抽 🪙1</button>
+          <button onClick={()=>doPull(10)} disabled={pulling||gs.gold<10} style={{flex:1,padding:"12px",borderRadius:"14px",border:"2px solid rgba(239,68,68,0.4)",background:"linear-gradient(135deg,rgba(239,68,68,0.12),rgba(249,115,22,0.08))",color:"#f97316",fontWeight:900,fontSize:"15px",cursor:"pointer",fontFamily:"inherit",opacity:gs.gold<10?0.4:1}}>十抽 🪙10</button>
         </div>
-        {["SSR","SR","R"].map(r=>(<div key={r} style={{marginBottom:"10px"}}><div style={{fontSize:"10px",fontWeight:700,color:RC[r].color,marginBottom:"4px"}}>{r}</div><div style={{display:"flex",gap:"6px",overflowX:"auto",paddingBottom:"4px",WebkitOverflowScrolling:"touch"}}>{CARD_POOL.filter(c=>c.rarity===r).map(c=>(<div key={c.id} style={{textAlign:"center",flexShrink:0}}><CImg card={c} sz="sm"/><div style={{fontSize:"9px",color:"#a8a29e",marginTop:"3px"}}>{c.name}</div></div>))}</div></div>))}
+        {["SSR","SR","R"].map(r=>(<div key={r} style={{marginBottom:"8px"}}><div style={{fontSize:"9px",fontWeight:700,color:RC[r].color,marginBottom:"3px"}}>{r}</div><div style={{display:"flex",gap:"5px",overflowX:"auto",paddingBottom:"3px"}}>{CARD_POOL.filter(c=>c.rarity===r).map(c=>(<div key={c.id} style={{textAlign:"center",flexShrink:0}}><CImg card={c} sz="sm"/><div style={{fontSize:"8px",color:"#a8a29e",marginTop:"2px"}}>{c.name}</div></div>))}</div></div>))}
       </div></div>}
 
       {/* PULL RESULT */}
       {pullRes&&<div style={{position:"fixed",inset:0,zIndex:260,background:"rgba(0,0,0,0.95)",backdropFilter:"blur(12px)",overflow:"auto",WebkitOverflowScrolling:"touch"}}><div style={{maxWidth:460,margin:"0 auto",padding:"54px 16px 30px",textAlign:"center"}}>
-        <div style={{fontSize:"16px",fontWeight:900,color:"#fbbf24",letterSpacing:"4px",marginBottom:"18px"}}>🎊 抽獎結果 🎊</div>
-        <div style={{display:"flex",flexWrap:"wrap",justifyContent:"center",gap:"8px",marginBottom:"20px"}}>
-          {pullRes.map((c,i)=>{const isDupe=gs.cards[c.id]&&gs.cards[c.id].copies>0;return(<div key={i} style={{animation:`cFlip 0.5s ${i*0.1}s ease-out both`,textAlign:"center"}}><CImg card={c} sz="md"/><div style={{fontSize:"10px",color:RC[c.rarity].color,marginTop:"3px",fontWeight:700}}>{c.name}</div>{isDupe&&<div style={{fontSize:"9px",color:"#fbbf24"}}>+1 碎片</div>}</div>);})}
-        </div>
-        <div style={{display:"flex",gap:"10px",justifyContent:"center"}}>
-          <button onClick={()=>setPullRes(null)} style={{padding:"10px 28px",borderRadius:"12px",border:"1px solid rgba(255,255,255,0.1)",background:"rgba(255,255,255,0.05)",color:"#a8a29e",fontWeight:700,fontSize:"14px",cursor:"pointer",fontFamily:"inherit"}}>繼續抽</button>
-          <button onClick={()=>{setPullRes(null);setShop(false);setVw("cards");}} style={{padding:"10px 28px",borderRadius:"12px",border:"2px solid rgba(251,191,36,0.4)",background:"linear-gradient(135deg,rgba(251,191,36,0.1),rgba(249,115,22,0.06))",color:"#fbbf24",fontWeight:900,fontSize:"14px",cursor:"pointer",fontFamily:"inherit"}}>去升級 →</button>
-        </div>
+        <div style={{fontSize:"15px",fontWeight:900,color:"#fbbf24",letterSpacing:"4px",marginBottom:"16px"}}>🎊 抽獎結果 🎊</div>
+        <div style={{display:"flex",flexWrap:"wrap",justifyContent:"center",gap:"7px",marginBottom:"18px"}}>{pullRes.map((c,i)=>(<div key={i} style={{animation:`cFlip 0.5s ${i*0.1}s ease-out both`,textAlign:"center"}}><CImg card={c} sz="md"/><div style={{fontSize:"9px",color:RC[c.rarity].color,marginTop:"2px",fontWeight:700}}>{c.name}</div></div>))}</div>
+        <div style={{display:"flex",gap:"8px",justifyContent:"center"}}><button onClick={()=>setPullRes(null)} style={{padding:"9px 24px",borderRadius:"12px",border:"1px solid rgba(255,255,255,0.1)",background:"rgba(255,255,255,0.05)",color:"#a8a29e",fontWeight:700,fontSize:"13px",cursor:"pointer",fontFamily:"inherit"}}>繼續抽</button><button onClick={()=>{setPullRes(null);setShop(false);setVw("cards");}} style={{padding:"9px 24px",borderRadius:"12px",border:"2px solid rgba(251,191,36,0.4)",background:"linear-gradient(135deg,rgba(251,191,36,0.1),rgba(249,115,22,0.06))",color:"#fbbf24",fontWeight:900,fontSize:"13px",cursor:"pointer",fontFamily:"inherit"}}>去升級→</button></div>
       </div></div>}
 
-      {/* CARD DETAIL */}
-      {detData&&<div style={{position:"fixed",inset:0,zIndex:250,background:"rgba(0,0,0,0.92)",backdropFilter:"blur(12px)",display:"flex",alignItems:"center",justifyContent:"center"}} onClick={()=>setCDet(null)}>
-        <div onClick={e=>e.stopPropagation()} style={{animation:"lvlA 0.4s ease-out",textAlign:"center",padding:"24px 28px",background:"linear-gradient(135deg,rgba(20,10,10,0.95),rgba(30,15,15,0.95))",border:`2px solid ${RC[detData.rarity].border}`,borderRadius:"24px",maxWidth:"300px",width:"90%",boxShadow:`0 0 40px ${RC[detData.rarity].glow}`}}>
-          <CImg card={detData} sz="full" lvl={gs.cards[detData.id]?.level}/>
-          <div style={{marginTop:"10px",fontSize:"20px",fontWeight:900,color:RC[detData.rarity].color}}>{detData.name}</div>
-          <div style={{fontSize:"12px",color:RC[detData.rarity].color,marginTop:"2px"}}>{detData.rarity}　Lv.{gs.cards[detData.id]?.level||1}</div>
-          <div style={{fontSize:"13px",color:"#f97316",fontFamily:"'Black Ops One',cursive",marginTop:"2px"}}>⚔ 戰力 {cardCP(detData,gs.cards[detData.id]?.level||1)}</div>
-          <div style={{fontSize:"11px",color:"#78716c",marginTop:"2px"}}>{detData.name}碎片：{gs.cards[detData.id]?.copies||0}</div>
-          {gs.cards[detData.id]&&(()=>{const st=cStats(detData,gs.cards[detData.id].level);return(<div style={{marginTop:"10px",display:"grid",gridTemplateColumns:"1fr 1fr",gap:"5px"}}>{[{k:"atk",l:"攻擊",c:"#ef4444"},{k:"def",l:"防禦",c:"#3b82f6"},{k:"spd",l:"速度",c:"#22c55e"},{k:"hp",l:"血量",c:"#f59e0b"}].map(s=>(<div key={s.k} style={{padding:"5px",borderRadius:"7px",background:"rgba(255,255,255,0.03)"}}><div style={{fontSize:"9px",color:"#78716c"}}>{s.l}</div><div style={{fontFamily:"'Black Ops One',cursive",fontSize:"17px",color:s.c}}>{st[s.k]}</div></div>))}</div>);})()}
-          {gs.cards[detData.id]?.copies>=1&&<div style={{marginTop:"12px",display:"flex",gap:"8px"}}>
-            <button onClick={()=>upCard(detData.id,false)} style={{flex:1,padding:"10px",borderRadius:"12px",border:"2px solid rgba(34,197,94,0.5)",background:"linear-gradient(135deg,rgba(34,197,94,0.15),rgba(22,163,74,0.1))",color:"#4ade80",fontWeight:900,fontSize:"13px",cursor:"pointer",fontFamily:"inherit"}}>⬆️ 升1級<div style={{fontSize:"10px",fontWeight:400,marginTop:"2px"}}>消耗1碎片</div></button>
-            {gs.cards[detData.id].copies>=2&&<button onClick={()=>upCard(detData.id,true)} style={{flex:1,padding:"10px",borderRadius:"12px",border:"2px solid rgba(251,191,36,0.5)",background:"linear-gradient(135deg,rgba(251,191,36,0.12),rgba(249,115,22,0.08))",color:"#fbbf24",fontWeight:900,fontSize:"13px",cursor:"pointer",fontFamily:"inherit"}}>⚡ 升到滿<div style={{fontSize:"10px",fontWeight:400,marginTop:"2px"}}>全部{gs.cards[detData.id].copies}碎片</div></button>}
+      {/* CARD DETAIL + UPGRADE + STAR */}
+      {detData&&<div style={{position:"fixed",inset:0,zIndex:250,background:"rgba(0,0,0,0.92)",backdropFilter:"blur(12px)",overflow:"auto",WebkitOverflowScrolling:"touch",display:"flex",alignItems:"center",justifyContent:"center"}} onClick={()=>setCDet(null)}>
+        <div onClick={e=>e.stopPropagation()} style={{animation:"lvlA 0.4s ease-out",textAlign:"center",padding:"20px 24px",background:"linear-gradient(135deg,rgba(20,10,10,0.95),rgba(30,15,15,0.95))",border:`2px solid ${RC[detData.rarity].border}`,borderRadius:"24px",maxWidth:"300px",width:"90%",boxShadow:`0 0 40px ${RC[detData.rarity].glow}`}}>
+          <CImg card={detData} sz="full" lvl={gs.cards[detData.id]?.level} stars={gs.cards[detData.id]?.stars}/>
+          <div style={{marginTop:"8px",fontSize:"18px",fontWeight:900,color:RC[detData.rarity].color}}>{detData.name}</div>
+          <div style={{fontSize:"11px",color:RC[detData.rarity].color}}>{detData.rarity}　Lv.{gs.cards[detData.id]?.level||1}　{"★".repeat(gs.cards[detData.id]?.stars||0)}{"☆".repeat(5-(gs.cards[detData.id]?.stars||0))}</div>
+          <div style={{fontSize:"12px",color:"#f97316",fontFamily:"'Black Ops One',cursive",marginTop:"2px"}}>⚔ {cardCP(detData,gs.cards[detData.id]?.level||1,gs.cards[detData.id]?.stars||0)}</div>
+          <div style={{fontSize:"10px",color:"#78716c",marginTop:"2px"}}>碎片：{gs.cards[detData.id]?.copies||0}　(升級需{upgradeCost(gs.cards[detData.id]?.level||1)}個)</div>
+          {gs.cards[detData.id]&&(()=>{const st=cStats(detData,gs.cards[detData.id].level,gs.cards[detData.id].stars||0);return(<div style={{marginTop:"8px",display:"grid",gridTemplateColumns:"1fr 1fr",gap:"4px"}}>{[{k:"atk",l:"攻擊",c:"#ef4444"},{k:"def",l:"防禦",c:"#3b82f6"},{k:"spd",l:"速度",c:"#22c55e"},{k:"hp",l:"血量",c:"#f59e0b"}].map(s=>(<div key={s.k} style={{padding:"4px",borderRadius:"6px",background:"rgba(255,255,255,0.03)"}}><div style={{fontSize:"8px",color:"#78716c"}}>{s.l}</div><div style={{fontFamily:"'Black Ops One',cursive",fontSize:"15px",color:s.c}}>{st[s.k]}</div></div>))}</div>);})()}
+
+          {/* Upgrade */}
+          {gs.cards[detData.id]?.copies>=upgradeCost(gs.cards[detData.id]?.level||1)&&<div style={{marginTop:"10px",display:"flex",gap:"6px"}}>
+            <button onClick={()=>upCard(detData.id,false)} style={{flex:1,padding:"8px",borderRadius:"10px",border:"2px solid rgba(34,197,94,0.5)",background:"linear-gradient(135deg,rgba(34,197,94,0.15),rgba(22,163,74,0.1))",color:"#4ade80",fontWeight:900,fontSize:"12px",cursor:"pointer",fontFamily:"inherit"}}>⬆️升1級</button>
+            <button onClick={()=>upCard(detData.id,true)} style={{flex:1,padding:"8px",borderRadius:"10px",border:"2px solid rgba(251,191,36,0.4)",background:"linear-gradient(135deg,rgba(251,191,36,0.1),rgba(249,115,22,0.06))",color:"#fbbf24",fontWeight:900,fontSize:"12px",cursor:"pointer",fontFamily:"inherit"}}>⚡升到滿</button>
           </div>}
-          {gs.cards[detData.id]?.copies<1&&<div style={{marginTop:"10px",fontSize:"11px",color:"#57534e"}}>需要碎片才能升級</div>}
-          <button onClick={()=>setCDet(null)} style={{marginTop:"10px",padding:"6px 20px",borderRadius:"8px",border:"1px solid rgba(255,255,255,0.08)",background:"rgba(255,255,255,0.03)",color:"#78716c",fontSize:"11px",cursor:"pointer",fontFamily:"inherit"}}>關閉</button>
+          {/* Star Up */}
+          {gs.cards[detData.id]&&(gs.cards[detData.id].stars||0)<5&&<button onClick={()=>starUp(detData.id)} style={{marginTop:"6px",width:"100%",padding:"8px",borderRadius:"10px",border:"2px solid rgba(251,191,36,0.5)",background:"linear-gradient(135deg,rgba(251,191,36,0.08),rgba(249,115,22,0.04))",color:"#fbbf24",fontWeight:900,fontSize:"12px",cursor:"pointer",fontFamily:"inherit"}}>⭐ 升星（需10個{detData.rarity}素材，目前{gs.starMats?.[detData.rarity]||0}）</button>}
+          {gs.cards[detData.id]?.stars>=5&&<div style={{marginTop:"6px",fontSize:"10px",color:"#fbbf24"}}>⭐ 已滿星！</div>}
+          <button onClick={()=>setCDet(null)} style={{marginTop:"8px",padding:"5px 18px",borderRadius:"8px",border:"1px solid rgba(255,255,255,0.08)",background:"rgba(255,255,255,0.03)",color:"#78716c",fontSize:"10px",cursor:"pointer",fontFamily:"inherit"}}>關閉</button>
         </div>
       </div>}
 
-      {notif&&<div style={{position:"fixed",top:"54px",left:"50%",transform:"translateX(-50%)",zIndex:350,padding:"10px 22px",borderRadius:"12px",background:notif.type==="success"?"linear-gradient(135deg,#16a34a,#15803d)":"linear-gradient(135deg,#dc2626,#b91c1c)",color:"#fff",fontWeight:700,fontSize:"14px",animation:"slideDown 0.3s ease-out",boxShadow:"0 8px 30px rgba(0,0,0,0.5)",whiteSpace:"nowrap"}}>{notif.text}</div>}
+      {/* MAILBOX */}
+      {showMail&&<div style={{position:"fixed",inset:0,zIndex:250,background:"rgba(0,0,0,0.93)",backdropFilter:"blur(12px)",overflow:"auto",WebkitOverflowScrolling:"touch"}}><div style={{maxWidth:460,margin:"0 auto",padding:"54px 16px 30px"}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"14px"}}><div style={{fontSize:"16px",fontWeight:900,color:"#fbbf24"}}>📬 信箱</div><button onClick={()=>setShowMail(false)} style={{background:"none",border:"none",color:"#78716c",fontSize:"24px",cursor:"pointer"}}>✕</button></div>
+        {(gs.mailbox||[]).length===0?<div style={{textAlign:"center",color:"#57534e",padding:"32px",fontSize:"13px"}}>沒有郵件</div>:
+        (gs.mailbox||[]).map(m=>(<div key={m.id} style={{padding:"12px",borderRadius:"12px",background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.04)",marginBottom:"8px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+          <div><div style={{fontSize:"12px",color:"#e7e5e4"}}>{m.text}</div><div style={{fontSize:"9px",color:"#78716c"}}>{new Date(m.time).toLocaleDateString()}</div></div>
+          {m.claimed?<span style={{fontSize:"10px",color:"#57534e"}}>已領取</span>:<button onClick={()=>claimMail(m.id)} style={{padding:"6px 14px",borderRadius:"8px",border:"none",background:"linear-gradient(135deg,#dc2626,#b91c1c)",color:"#fff",fontWeight:700,fontSize:"11px",cursor:"pointer",fontFamily:"inherit"}}>領取</button>}
+        </div>))}
+      </div></div>}
+
+      {notif&&<div style={{position:"fixed",top:"54px",left:"50%",transform:"translateX(-50%)",zIndex:350,padding:"8px 18px",borderRadius:"12px",background:notif.type==="success"?"linear-gradient(135deg,#16a34a,#15803d)":"linear-gradient(135deg,#dc2626,#b91c1c)",color:"#fff",fontWeight:700,fontSize:"13px",animation:"slideDown 0.3s ease-out",boxShadow:"0 8px 30px rgba(0,0,0,0.5)",whiteSpace:"nowrap",maxWidth:"90%",overflow:"hidden",textOverflow:"ellipsis"}}>{notif.text}</div>}
 
       {/* ═══ CONTENT ═══ */}
       <div style={{position:"relative",zIndex:1,maxWidth:460,margin:"0 auto",paddingBottom:"90px"}}>
-        {/* Cover */}
         <div style={{position:"relative",width:"100%",height:"200px",overflow:"hidden"}}>
           <img src="/cover.jpg" alt="" style={{width:"100%",height:"100%",objectFit:"cover",display:"block"}} onError={e=>{e.target.style.display="none"}}/>
           <div style={{position:"absolute",inset:0,background:"linear-gradient(to bottom,rgba(8,0,0,0.3) 0%,rgba(8,0,0,0) 30%,rgba(8,0,0,0.8) 80%,#080000 100%)"}}/>
           <div style={{position:"absolute",bottom:"12px",left:0,right:0,textAlign:"center"}}>
-            <div style={{fontFamily:"'Black Ops One',cursive",fontSize:"42px",background:"linear-gradient(135deg,#ef4444,#f97316,#fbbf24,#ef4444)",backgroundSize:"300% 300%",animation:"burnText 4s ease infinite",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",letterSpacing:"3px"}}>Lv.{gs.level}</div>
-            <div style={{fontSize:"12px",color:rank.c,fontWeight:700,letterSpacing:"3px"}}>[{rank.t}]</div>
+            <div style={{fontFamily:"'Black Ops One',cursive",fontSize:"40px",background:"linear-gradient(135deg,#ef4444,#f97316,#fbbf24,#ef4444)",backgroundSize:"300% 300%",animation:"burnText 4s ease infinite",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",letterSpacing:"3px"}}>Lv.{gs.level}</div>
+            <div style={{fontSize:"11px",color:rank.c,fontWeight:700,letterSpacing:"3px"}}>[{rank.t}]</div>
+          </div>
+          {/* Music + Mail buttons */}
+          <div style={{position:"absolute",top:"12px",right:"12px",display:"flex",gap:"8px"}}>
+            <button onClick={()=>setShowMail(true)} style={{background:"rgba(0,0,0,0.5)",border:"none",borderRadius:"50%",width:36,height:36,cursor:"pointer",fontSize:"16px",position:"relative"}}>📬{unclaimedMail>0&&<div style={{position:"absolute",top:-2,right:-2,width:14,height:14,borderRadius:7,background:"#ef4444",fontSize:"8px",color:"#fff",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:900}}>{unclaimedMail}</div>}</button>
+            <button onClick={toggleMusic} style={{background:"rgba(0,0,0,0.5)",border:"none",borderRadius:"50%",width:36,height:36,cursor:"pointer",fontSize:"16px"}}>{gs.musicOn?"🔊":"🔇"}</button>
           </div>
         </div>
 
         <div style={{padding:"0 14px",overflow:"hidden"}}>
-          <div style={{textAlign:"center",fontSize:"11px",color:"#78716c",marginBottom:"10px"}}>第 {gs.round} 關　|　通關 {gs.cleared}</div>
-
-          {/* XP */}
-          <div style={{marginBottom:"8px"}}><div style={{display:"flex",justifyContent:"space-between",fontSize:"10px",color:"#78716c",marginBottom:"3px"}}><span>EXP</span><span>{gs.xp}/{xpN}</span></div><div style={{height:"7px",borderRadius:"4px",background:"rgba(255,255,255,0.05)",overflow:"hidden"}}><div style={{height:"100%",borderRadius:"4px",width:`${Math.min(xpP,100)}%`,background:"linear-gradient(90deg,#ef4444,#f97316,#fbbf24)",transition:"width 0.5s",boxShadow:"0 0 10px rgba(239,68,68,0.4)"}}/></div></div>
-
-          {/* HP + Gold */}
-          <div style={{display:"flex",gap:"10px",marginBottom:"14px"}}>
-            <div style={{flex:1}}><div style={{display:"flex",justifyContent:"space-between",fontSize:"10px",color:"#78716c",marginBottom:"3px"}}><span>❤️ HP</span><span>{gs.hp}/{gs.maxHp}</span></div><div style={{height:"7px",borderRadius:"4px",background:"rgba(255,255,255,0.05)",overflow:"hidden"}}><div style={{height:"100%",borderRadius:"4px",width:`${hpP}%`,background:hpP>60?"#22c55e":hpP>30?"#f59e0b":"#ef4444",transition:"width 0.4s"}}/></div></div>
-            <div onClick={()=>setShop(true)} style={{display:"flex",alignItems:"center",gap:"5px",padding:"2px 12px",borderRadius:"8px",background:"rgba(251,191,36,0.08)",border:"1px solid rgba(251,191,36,0.2)",cursor:"pointer",animation:gP?"goldPop 0.4s ease":"none"}}><span style={{fontSize:"15px"}}>🪙</span><span style={{fontFamily:"'Black Ops One',cursive",color:"#fbbf24",fontSize:"15px"}}>{gs.gold}</span></div>
+          <div style={{textAlign:"center",fontSize:"10px",color:"#78716c",marginBottom:"6px"}}>第{gs.round}關 | 通關{gs.cleared} | ⚔主角{pCP}</div>
+          {/* Mats display */}
+          <div style={{display:"flex",justifyContent:"center",gap:"10px",marginBottom:"8px",fontSize:"9px"}}>
+            <span style={{color:"#60a5fa"}}>R素材:{gs.starMats?.R||0}</span>
+            <span style={{color:"#c084fc"}}>SR素材:{gs.starMats?.SR||0}</span>
+            <span style={{color:"#fbbf24"}}>SSR素材:{gs.starMats?.SSR||0}</span>
           </div>
 
-          {/* Nav — 5 tabs */}
-          <div style={{display:"flex",gap:"2px",marginBottom:"14px",background:"rgba(255,255,255,0.02)",borderRadius:"12px",padding:"3px"}}>
+          {/* XP */}
+          <div style={{marginBottom:"6px"}}><div style={{display:"flex",justifyContent:"space-between",fontSize:"9px",color:"#78716c",marginBottom:"2px"}}><span>EXP</span><span>{gs.xp}/{xpN}</span></div><div style={{height:"6px",borderRadius:"3px",background:"rgba(255,255,255,0.05)",overflow:"hidden"}}><div style={{height:"100%",borderRadius:"3px",width:`${Math.min(xpP,100)}%`,background:"linear-gradient(90deg,#ef4444,#f97316,#fbbf24)",transition:"width 0.5s"}}/></div></div>
+
+          {/* HP + Gold */}
+          <div style={{display:"flex",gap:"8px",marginBottom:"12px"}}>
+            <div style={{flex:1}}><div style={{display:"flex",justifyContent:"space-between",fontSize:"9px",color:"#78716c",marginBottom:"2px"}}><span>❤️HP</span><span>{gs.hp}/{gs.maxHp}</span></div><div style={{height:"6px",borderRadius:"3px",background:"rgba(255,255,255,0.05)",overflow:"hidden"}}><div style={{height:"100%",borderRadius:"3px",width:`${hpP}%`,background:hpP>60?"#22c55e":hpP>30?"#f59e0b":"#ef4444",transition:"width 0.4s"}}/></div></div>
+            <div onClick={()=>setShop(true)} style={{display:"flex",alignItems:"center",gap:"4px",padding:"2px 10px",borderRadius:"8px",background:"rgba(251,191,36,0.08)",border:"1px solid rgba(251,191,36,0.2)",cursor:"pointer",animation:gP?"goldPop 0.4s ease":"none"}}><span style={{fontSize:"14px"}}>🪙</span><span style={{fontFamily:"'Black Ops One',cursive",color:"#fbbf24",fontSize:"14px"}}>{gs.gold}</span></div>
+          </div>
+
+          {/* Nav */}
+          <div style={{display:"flex",gap:"2px",marginBottom:"12px",background:"rgba(255,255,255,0.02)",borderRadius:"12px",padding:"3px"}}>
             {[{k:"train",l:"🔥訓練"},{k:"battle",l:"🗡️戰鬥"},{k:"cards",l:"🃏角色"},{k:"stats",l:"📊能力"},{k:"skills",l:"⚔️技能"}].map(t=>(<button key={t.k} onClick={()=>setVw(t.k)} style={{flex:1,padding:"7px 2px",borderRadius:"9px",border:"none",cursor:"pointer",fontSize:"11px",fontWeight:700,fontFamily:"inherit",background:vw===t.k?"linear-gradient(135deg,rgba(239,68,68,0.2),rgba(249,115,22,0.12))":"transparent",color:vw===t.k?"#f97316":"#57534e",transition:"all 0.2s"}}>{t.l}</button>))}
           </div>
 
           {/* ═══ TRAIN ═══ */}
           {vw==="train"&&<div>
-            <div style={{display:"flex",justifyContent:"space-between",marginBottom:"10px"}}><span style={{fontSize:"13px",fontWeight:700,color:"#a8a29e"}}>[第 {gs.round} 關]</span><span style={{fontSize:"11px",color:"#78716c"}}>{exs.filter(e=>(gs.progress[e.id]||0)>=e.target).length}/{exs.length}</span></div>
+            <div style={{display:"flex",justifyContent:"space-between",marginBottom:"8px"}}><span style={{fontSize:"12px",fontWeight:700,color:"#a8a29e"}}>[第{gs.round}關]</span><span style={{fontSize:"10px",color:"#78716c"}}>{exs.filter(e=>(gs.progress[e.id]||0)>=e.target).length}/{exs.length}</span></div>
             {exs.map((ex,i)=>{const d=gs.progress[ex.id]||0,p=Math.min((d/ex.target)*100,100),c=d>=ex.target;return(
-              <div key={ex.id+gs.round} style={{marginBottom:"10px",padding:"13px 15px",borderRadius:"14px",background:c?"linear-gradient(135deg,rgba(34,197,94,0.06),rgba(22,163,74,0.03))":"rgba(255,255,255,0.02)",border:`1px solid ${c?"rgba(34,197,94,0.3)":"rgba(255,255,255,0.04)"}`,overflow:"hidden",animation:shkId===ex.id?"shake 0.4s ease":`fadeUp ${0.15+i*0.06}s ease-out`}}>
-                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"7px"}}><div style={{display:"flex",alignItems:"center",gap:"7px"}}><span style={{fontSize:"20px"}}>{ex.icon}</span><span style={{fontSize:"15px",fontWeight:700,color:c?"#4ade80":"#e7e5e4"}}>{ex.name}</span>{c&&<span style={{fontSize:"11px"}}>✅</span>}</div><span style={{fontSize:"12px",color:c?"#4ade80":"#78716c",fontFamily:"'Black Ops One',cursive"}}>{d}/{ex.target}</span></div>
-                <div style={{height:"4px",borderRadius:"2px",marginBottom:"9px",background:"rgba(255,255,255,0.05)",overflow:"hidden"}}><div style={{height:"100%",borderRadius:"2px",width:`${p}%`,background:c?"linear-gradient(90deg,#22c55e,#4ade80)":"linear-gradient(90deg,#ef4444,#f97316)",transition:"width 0.4s"}}/></div>
-                {!c&&<div style={{display:"flex",gap:"7px",overflow:"hidden",width:"100%"}}><input type="number" inputMode="numeric" pattern="[0-9]*" placeholder="輸入次數" value={inp[ex.id]||""} onChange={e=>setInp(q=>({...q,[ex.id]:e.target.value}))} onKeyDown={e=>e.key==="Enter"&&doEx(ex)} style={{flex:"1 1 0%",minWidth:0,width:0,padding:"9px 11px",borderRadius:"9px",border:"1px solid rgba(255,255,255,0.08)",background:"rgba(0,0,0,0.4)",color:"#e7e5e4",fontSize:"16px",fontFamily:"inherit",outline:"none",WebkitAppearance:"none",appearance:"none"}}/><button onClick={()=>doEx(ex)} style={{flexShrink:0,padding:"9px 16px",borderRadius:"9px",border:"none",background:"linear-gradient(135deg,#dc2626,#b91c1c)",color:"#fff",fontWeight:700,fontSize:"13px",cursor:"pointer",fontFamily:"inherit"}}>確認</button></div>}
+              <div key={ex.id+gs.round} style={{marginBottom:"8px",padding:"11px 13px",borderRadius:"14px",background:c?"linear-gradient(135deg,rgba(34,197,94,0.06),rgba(22,163,74,0.03))":"rgba(255,255,255,0.02)",border:`1px solid ${c?"rgba(34,197,94,0.3)":"rgba(255,255,255,0.04)"}`,overflow:"hidden",animation:shkId===ex.id?"shake 0.4s ease":`fadeUp ${0.15+i*0.05}s ease-out`}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"6px"}}><div style={{display:"flex",alignItems:"center",gap:"6px"}}><span style={{fontSize:"18px"}}>{ex.icon}</span><span style={{fontSize:"14px",fontWeight:700,color:c?"#4ade80":"#e7e5e4"}}>{ex.name}</span>{c&&<span style={{fontSize:"10px"}}>✅</span>}</div><span style={{fontSize:"11px",color:c?"#4ade80":"#78716c",fontFamily:"'Black Ops One',cursive"}}>{d}/{ex.target}</span></div>
+                <div style={{height:"3px",borderRadius:"2px",marginBottom:"8px",background:"rgba(255,255,255,0.05)",overflow:"hidden"}}><div style={{height:"100%",borderRadius:"2px",width:`${p}%`,background:c?"linear-gradient(90deg,#22c55e,#4ade80)":"linear-gradient(90deg,#ef4444,#f97316)",transition:"width 0.4s"}}/></div>
+                {!c&&<div style={{display:"flex",gap:"6px",overflow:"hidden",width:"100%"}}><input type="number" inputMode="numeric" pattern="[0-9]*" placeholder="輸入次數" value={inp[ex.id]||""} onChange={e=>setInp(q=>({...q,[ex.id]:e.target.value}))} onKeyDown={e=>e.key==="Enter"&&doEx(ex)} style={{flex:"1 1 0%",minWidth:0,width:0,padding:"8px 10px",borderRadius:"9px",border:"1px solid rgba(255,255,255,0.08)",background:"rgba(0,0,0,0.4)",color:"#e7e5e4",fontSize:"16px",fontFamily:"inherit",outline:"none",WebkitAppearance:"none",appearance:"none"}}/><button onClick={()=>doEx(ex)} style={{flexShrink:0,padding:"8px 14px",borderRadius:"9px",border:"none",background:"linear-gradient(135deg,#dc2626,#b91c1c)",color:"#fff",fontWeight:700,fontSize:"12px",cursor:"pointer",fontFamily:"inherit"}}>確認</button></div>}
               </div>);})}
-            {allDone&&!rdClr&&(()=>{const canGo=!gs.completedAt||canNextRound(gs.completedAt);return(<div style={{textAlign:"center",marginTop:"14px",animation:"fadeUp 0.4s ease-out"}}>{canGo?<button onClick={()=>setRdClr(true)} style={{padding:"14px 36px",borderRadius:"14px",border:"2px solid rgba(239,68,68,0.5)",background:"linear-gradient(135deg,rgba(239,68,68,0.15),rgba(249,115,22,0.1))",color:"#f97316",fontWeight:900,fontSize:"17px",cursor:"pointer",fontFamily:"inherit",animation:"pulse 2s infinite,bGlow 2s infinite"}}>🔥 完成！下一關 🔥</button>:<div style={{padding:"18px",borderRadius:"14px",background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.06)"}}><div style={{fontSize:"14px",fontWeight:700,color:"#4ade80",marginBottom:"6px"}}>✅ 今日任務已完成！</div><div style={{fontSize:"12px",color:"#78716c"}}>下一關將在 04:00 解鎖</div><div style={{fontFamily:"'Black Ops One',cursive",fontSize:"22px",color:"#f97316",marginTop:"6px"}}>{midnightStr||getTimeToReset()}</div></div>}</div>);})()}
-            <div style={{textAlign:"center",marginTop:"18px"}}><button onClick={()=>{setSecretTap(p=>{const n=p+1;if(tapTimer.current)clearTimeout(tapTimer.current);tapTimer.current=setTimeout(()=>setSecretTap(0),2000);if(n>=5){setShowSecret(true);return 0;}return n;});}} style={{padding:"5px 18px",borderRadius:"8px",border:"1px solid rgba(239,68,68,0.15)",background:"rgba(239,68,68,0.03)",color:"#78716c",fontSize:"10px",cursor:"pointer",fontFamily:"inherit"}}>重置</button>
-              {showSecret&&<div style={{marginTop:"12px",padding:"12px",borderRadius:"12px",background:"rgba(139,92,246,0.08)",border:"1px solid rgba(139,92,246,0.2)"}}><div style={{fontSize:"10px",color:"#a78bfa",marginBottom:"6px"}}>🔑 管理員</div><div style={{display:"flex",gap:"6px"}}><input type="number" inputMode="numeric" placeholder="跳到第幾關" value={skipTo} onChange={e=>setSkipTo(e.target.value)} style={{flex:"1 1 0%",minWidth:0,padding:"7px 10px",borderRadius:"8px",border:"1px solid rgba(139,92,246,0.2)",background:"rgba(0,0,0,0.3)",color:"#e7e5e4",fontSize:"14px",fontFamily:"inherit",outline:"none"}}/><button onClick={()=>{const t=parseInt(skipTo);if(!t||t<=gs.round||t>100){noti("無效");return;}const rw=calcSkipRewards(gs.round,t);let nL=gs.level,nM=gs.maxHp,nX=gs.xp+rw.xp;while(nL<100&&nX>=xpFor(nL+1)){nL++;nM+=5;}const nsk=[...(gs.skills||[])];SKILLS.forEach(s=>{if(!nsk.includes(s.id)&&nL>=s.lv)nsk.push(s.id);});setGs(p=>({...p,round:t,progress:{},curEx:getEx(t),cleared:p.cleared+(t-p.round),xp:nX,level:nL,maxHp:nM,hp:nM,gold:p.gold+rw.gold,skills:nsk,completedAt:null}));setSkipTo("");setShowSecret(false);noti(`跳至第${t}關！+${rw.xp}XP +${rw.gold}🪙`,"success");}} style={{flexShrink:0,padding:"7px 14px",borderRadius:"8px",border:"none",background:"linear-gradient(135deg,#7c3aed,#6d28d9)",color:"#fff",fontWeight:700,fontSize:"12px",cursor:"pointer",fontFamily:"inherit"}}>跳關</button></div><div style={{display:"flex",gap:"6px",marginTop:"6px"}}><button onClick={resetAll} style={{flex:1,padding:"6px",borderRadius:"6px",border:"1px solid rgba(239,68,68,0.3)",background:"rgba(239,68,68,0.05)",color:"#f87171",fontSize:"10px",cursor:"pointer",fontFamily:"inherit"}}>⚠️重置</button><button onClick={()=>setShowSecret(false)} style={{flex:1,padding:"6px",borderRadius:"6px",border:"1px solid rgba(255,255,255,0.08)",background:"rgba(255,255,255,0.03)",color:"#78716c",fontSize:"10px",cursor:"pointer",fontFamily:"inherit"}}>關閉</button></div></div>}
+            {allDone&&!rdClr&&(()=>{const canGo=!gs.completedAt||canNextRound(gs.completedAt);return(<div style={{textAlign:"center",marginTop:"12px",animation:"fadeUp 0.4s ease-out"}}>{canGo?<button onClick={()=>setRdClr(true)} style={{padding:"12px 32px",borderRadius:"14px",border:"2px solid rgba(239,68,68,0.5)",background:"linear-gradient(135deg,rgba(239,68,68,0.15),rgba(249,115,22,0.1))",color:"#f97316",fontWeight:900,fontSize:"16px",cursor:"pointer",fontFamily:"inherit",animation:"pulse 2s infinite,bGlow 2s infinite"}}>🔥完成！下一關🔥</button>:<div style={{padding:"14px",borderRadius:"14px",background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.06)"}}><div style={{fontSize:"13px",fontWeight:700,color:"#4ade80",marginBottom:"4px"}}>✅ 今日完成！</div><div style={{fontSize:"11px",color:"#78716c"}}>04:00 解鎖下一關</div><div style={{fontFamily:"'Black Ops One',cursive",fontSize:"20px",color:"#f97316",marginTop:"4px"}}>{midStr||getTimeToReset()}</div></div>}</div>);})()}
+            <div style={{textAlign:"center",marginTop:"14px"}}><button onClick={()=>{setSecretTap(p=>{const n=p+1;if(tapRef.current)clearTimeout(tapRef.current);tapRef.current=setTimeout(()=>setSecretTap(0),2000);if(n>=5){setShowSecret(true);return 0;}return n;});}} style={{padding:"4px 16px",borderRadius:"8px",border:"1px solid rgba(239,68,68,0.15)",background:"rgba(239,68,68,0.03)",color:"#78716c",fontSize:"9px",cursor:"pointer",fontFamily:"inherit"}}>重置</button>
+              {showSecret&&<div style={{marginTop:"10px",padding:"10px",borderRadius:"12px",background:"rgba(139,92,246,0.08)",border:"1px solid rgba(139,92,246,0.2)"}}><div style={{fontSize:"9px",color:"#a78bfa",marginBottom:"4px"}}>🔑管理員</div><div style={{display:"flex",gap:"4px"}}><input type="number" inputMode="numeric" placeholder="跳到第幾關" value={skipTo} onChange={e=>setSkipTo(e.target.value)} style={{flex:"1 1 0%",minWidth:0,padding:"6px 8px",borderRadius:"8px",border:"1px solid rgba(139,92,246,0.2)",background:"rgba(0,0,0,0.3)",color:"#e7e5e4",fontSize:"13px",fontFamily:"inherit",outline:"none"}}/><button onClick={()=>{const t=parseInt(skipTo);if(!t||t<=gs.round||t>100){noti("無效");return;}const rw=calcSkipRewards(gs.round,t);let nL=gs.level,nM=gs.maxHp,nX=gs.xp+rw.xp;while(nL<1000&&nX>=xpFor(nL+1)){nL++;nM+=5;}const nsk=[...(gs.skills||[])];SKILLS.forEach(s=>{if(!nsk.includes(s.id)&&nL>=s.lv)nsk.push(s.id);});setGs(p=>({...p,round:t,progress:{},curEx:getEx(t),cleared:p.cleared+(t-p.round),xp:nX,level:nL,maxHp:nM,hp:nM,gold:p.gold+rw.gold,skills:nsk,completedAt:null}));setSkipTo("");setShowSecret(false);noti(`跳至第${t}關`,"success");}} style={{flexShrink:0,padding:"6px 12px",borderRadius:"8px",border:"none",background:"linear-gradient(135deg,#7c3aed,#6d28d9)",color:"#fff",fontWeight:700,fontSize:"11px",cursor:"pointer",fontFamily:"inherit"}}>跳</button></div><div style={{display:"flex",gap:"4px",marginTop:"4px"}}><button onClick={resetAll} style={{flex:1,padding:"4px",borderRadius:"6px",border:"1px solid rgba(239,68,68,0.3)",background:"rgba(239,68,68,0.05)",color:"#f87171",fontSize:"9px",cursor:"pointer",fontFamily:"inherit"}}>⚠️重置</button><button onClick={()=>setShowSecret(false)} style={{flex:1,padding:"4px",borderRadius:"6px",border:"1px solid rgba(255,255,255,0.08)",background:"rgba(255,255,255,0.03)",color:"#78716c",fontSize:"9px",cursor:"pointer",fontFamily:"inherit"}}>關閉</button></div></div>}
             </div>
           </div>}
 
-          {/* ═══════════════════════════════════════
-               BATTLE VIEW
-             ═══════════════════════════════════════ */}
+          {/* ═══ BATTLE ═══ */}
           {vw==="battle"&&<div style={{animation:"fadeUp 0.3s ease-out"}}>
-
-            {/* PREP PHASE */}
             {btlPhase==="prep"&&<div>
-              {/* Boss Info */}
-              <div style={{padding:"16px",borderRadius:"16px",background:"linear-gradient(135deg,rgba(239,68,68,0.08),rgba(0,0,0,0.3))",border:"1px solid rgba(239,68,68,0.2)",marginBottom:"14px",textAlign:"center"}}>
-                <div style={{fontSize:"11px",color:"#78716c",marginBottom:"4px"}}>Boss #{gs.bossRound}　{boss.cycle>1?`(周回 ${boss.cycle})`:""}</div>
-                <div style={{fontSize:"40px",marginBottom:"4px"}}>{boss.emoji}</div>
-                <div style={{fontSize:"18px",fontWeight:900,color:"#ef4444"}}>{boss.name}</div>
-                <div style={{fontSize:"11px",color:"#a8a29e",marginBottom:"8px"}}>{boss.desc}</div>
-                <div style={{display:"flex",justifyContent:"center",gap:"12px",fontSize:"11px"}}>
-                  {[{l:"攻",v:boss.stats.atk,c:"#ef4444"},{l:"防",v:boss.stats.def,c:"#3b82f6"},{l:"速",v:boss.stats.spd,c:"#22c55e"},{l:"HP",v:boss.stats.hp,c:"#f59e0b"}].map(s=>(<div key={s.l}><span style={{color:"#78716c"}}>{s.l} </span><span style={{fontFamily:"'Black Ops One',cursive",color:s.c}}>{s.v}</span></div>))}
-                </div>
-                <div style={{marginTop:"8px",padding:"6px 12px",borderRadius:"8px",background:"rgba(249,115,22,0.08)",display:"inline-block"}}><span style={{fontSize:"11px",color:"#78716c"}}>推薦戰力 </span><span style={{fontFamily:"'Black Ops One',cursive",fontSize:"14px",color:"#f97316"}}>⚔ {Math.floor(bossCP(boss.stats)*1.2)}</span></div>
+              <div style={{padding:"14px",borderRadius:"16px",background:"linear-gradient(135deg,rgba(239,68,68,0.08),rgba(0,0,0,0.3))",border:"1px solid rgba(239,68,68,0.2)",marginBottom:"12px",textAlign:"center"}}>
+                <div style={{fontSize:"10px",color:"#78716c",marginBottom:"3px"}}>Boss #{gs.bossRound}</div>
+                <div style={{fontSize:"36px",marginBottom:"2px"}}>{boss.emoji}</div>
+                <div style={{fontSize:"16px",fontWeight:900,color:"#ef4444"}}>{boss.name}</div>
+                <div style={{fontSize:"10px",color:"#a8a29e",marginBottom:"6px"}}>{boss.desc}</div>
+                <div style={{display:"flex",justifyContent:"center",gap:"10px",fontSize:"10px",marginBottom:"6px"}}>{[{l:"攻",v:boss.stats.atk,c:"#ef4444"},{l:"防",v:boss.stats.def,c:"#3b82f6"},{l:"速",v:boss.stats.spd,c:"#22c55e"},{l:"HP",v:boss.stats.hp,c:"#f59e0b"}].map(s=>(<div key={s.l}><span style={{color:"#78716c"}}>{s.l}</span><span style={{fontFamily:"'Black Ops One',cursive",color:s.c,marginLeft:"2px"}}>{s.v}</span></div>))}</div>
+                <div style={{padding:"4px 10px",borderRadius:"8px",background:"rgba(249,115,22,0.08)",display:"inline-block"}}><span style={{fontSize:"10px",color:"#78716c"}}>推薦 </span><span style={{fontFamily:"'Black Ops One',cursive",fontSize:"13px",color:"#f97316"}}>⚔{Math.floor(calcCP(boss.stats)*1.2)}</span></div>
               </div>
 
-              {/* Card Selection */}
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"8px"}}>
-                <span style={{fontSize:"13px",fontWeight:700,color:"#a8a29e"}}>[選擇出戰]　{btlPick.length}/3</span>
-                {btlPick.length>0&&<span style={{fontSize:"13px",fontFamily:"'Black Ops One',cursive",color:btlPick.reduce((s,cid)=>{const c=CARD_POOL.find(x=>x.id===cid);return s+(c?cardCP(c,gs.cards[cid]?.level||1):0);},0)>=Math.floor(bossCP(boss.stats)*1.2)?"#4ade80":"#f97316"}}>⚔ {btlPick.reduce((s,cid)=>{const c=CARD_POOL.find(x=>x.id===cid);return s+(c?cardCP(c,gs.cards[cid]?.level||1):0);},0)}</span>}
+              {/* Player always in team */}
+              <div style={{padding:"10px",borderRadius:"12px",background:"rgba(6,182,212,0.06)",border:"1px solid rgba(6,182,212,0.2)",marginBottom:"10px",display:"flex",alignItems:"center",gap:"8px"}}>
+                <CImg card={PLAYER_CARD} sz="xs" lvl={gs.level}/>
+                <div style={{flex:1}}><div style={{fontSize:"11px",fontWeight:700,color:"#22d3ee"}}>主角（固定出戰）</div><div style={{fontSize:"10px",color:"#78716c"}}>攻{pStats.atk} 防{pStats.def} 速{pStats.spd} HP{pStats.hp}</div><div style={{fontFamily:"'Black Ops One',cursive",fontSize:"11px",color:"#f97316"}}>⚔{pCP}</div></div>
               </div>
-              {ownedCards.length===0?<div style={{textAlign:"center",padding:"24px",color:"#57534e",fontSize:"13px"}}>還沒有卡片，去抽獎吧！</div>:
-              <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:"6px",marginBottom:"14px"}}>
-                {ownedCards.map(cid=>{const card=CARD_POOL.find(c=>c.id===cid);if(!card)return null;const isSel=btlPick.includes(cid);const cp=cardCP(card,gs.cards[cid].level);
-                  return(<div key={cid} onClick={()=>toggleBtlCard(cid)} style={{textAlign:"center",cursor:"pointer"}}>
-                    <CImg card={card} sz="sm" lvl={gs.cards[cid].level} sel={isSel} dim={!isSel&&btlPick.length>=3}/>
-                    <div style={{fontSize:"8px",color:isSel?"#4ade80":"#78716c",marginTop:"2px",fontWeight:700}}>{card.name}</div>
-                    <div style={{fontSize:"8px",color:"#f97316",fontFamily:"'Black Ops One',cursive"}}>⚔{cp}</div>
-                  </div>);
-                })}
-              </div>}
 
-              <button onClick={startBattle} disabled={btlPick.length===0} style={{width:"100%",padding:"14px",borderRadius:"14px",border:"2px solid rgba(239,68,68,0.5)",background:"linear-gradient(135deg,rgba(239,68,68,0.15),rgba(249,115,22,0.1))",color:"#f97316",fontWeight:900,fontSize:"17px",cursor:"pointer",fontFamily:"inherit",opacity:btlPick.length===0?0.4:1,animation:btlPick.length>0?"pulse 2s infinite":"none"}}>
-                🗡️ 開始戰鬥
-              </button>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"6px"}}>
+                <span style={{fontSize:"12px",fontWeight:700,color:"#a8a29e"}}>[選擇隊友] {btlPick.length}/3</span>
+                <span style={{fontSize:"12px",fontFamily:"'Black Ops One',cursive",color:teamCP>=Math.floor(calcCP(boss.stats)*1.2)?"#4ade80":"#f97316"}}>全隊⚔{teamCP}</span>
+              </div>
+              {Object.keys(gs.cards).length===0?<div style={{textAlign:"center",padding:"20px",color:"#57534e",fontSize:"12px"}}>去抽卡吧！</div>:
+              <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:"5px",marginBottom:"12px"}}>{Object.keys(gs.cards).map(cid=>{const card=CARD_POOL.find(c=>c.id===cid);if(!card)return null;const isSel=btlPick.includes(cid);const cd=gs.cards[cid];const cp=cardCP(card,cd.level,cd.stars||0);return(<div key={cid} onClick={()=>toggleBtlCard(cid)} style={{textAlign:"center",cursor:"pointer"}}><CImg card={card} sz="sm" lvl={cd.level} sel={isSel} dim={!isSel&&btlPick.length>=3} stars={cd.stars}/><div style={{fontSize:"7px",color:isSel?"#4ade80":"#78716c",marginTop:"1px",fontWeight:700}}>{card.name}</div><div style={{fontSize:"8px",color:"#f97316",fontFamily:"'Black Ops One',cursive"}}>⚔{cp}</div></div>);})}</div>}
+              <button onClick={startBattle} style={{width:"100%",padding:"12px",borderRadius:"14px",border:"2px solid rgba(239,68,68,0.5)",background:"linear-gradient(135deg,rgba(239,68,68,0.15),rgba(249,115,22,0.1))",color:"#f97316",fontWeight:900,fontSize:"16px",cursor:"pointer",fontFamily:"inherit",animation:"pulse 2s infinite"}}>🗡️ 開始戰鬥</button>
             </div>}
 
-            {/* FIGHTING PHASE */}
             {btlPhase==="fighting"&&curLog&&<div>
-              {/* Boss HP */}
-              <div style={{padding:"14px",borderRadius:"14px",background:"rgba(239,68,68,0.06)",border:"1px solid rgba(239,68,68,0.15)",marginBottom:"10px",animation:curLog.type==="card_atk"?"hitShake 0.3s ease":"none"}}>
-                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"6px"}}>
-                  <div style={{display:"flex",alignItems:"center",gap:"6px"}}><span style={{fontSize:"24px"}}>{boss.emoji.split("").slice(0,2).join("")}</span><span style={{fontSize:"14px",fontWeight:700,color:"#ef4444"}}>{boss.name}</span></div>
-                  <span style={{fontSize:"11px",color:"#78716c"}}>{Math.max(curLog.bossHp,0)}/{curLog.bossMaxHp}</span>
-                </div>
-                <HpBar cur={curLog.bossHp} max={curLog.bossMaxHp} color="#ef4444" h={8}/>
-                {curLog.type==="card_atk"&&<div style={{textAlign:"center",marginTop:"4px",fontSize:"12px",color:"#fbbf24",fontWeight:700,animation:"dmgFloat 0.8s ease-out"}}>-{curLog.dmg}</div>}
+              <div style={{padding:"12px",borderRadius:"14px",background:"rgba(239,68,68,0.06)",border:"1px solid rgba(239,68,68,0.15)",marginBottom:"8px",animation:curLog.type==="card_atk"?"hitShake 0.3s ease":"none"}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"4px"}}><div style={{display:"flex",alignItems:"center",gap:"4px"}}><span style={{fontSize:"20px"}}>{boss.emoji.slice(0,2)}</span><span style={{fontSize:"13px",fontWeight:700,color:"#ef4444"}}>{boss.name}</span></div><span style={{fontSize:"10px",color:"#78716c"}}>{Math.max(curLog.bossHp,0)}/{curLog.bossMaxHp}</span></div>
+                <HpBar cur={curLog.bossHp} max={curLog.bossMaxHp} color="#ef4444" h={7}/>
+                {curLog.type==="card_atk"&&<div style={{textAlign:"center",marginTop:"3px",fontSize:"11px",color:"#fbbf24",fontWeight:700,animation:"dmgFloat 0.8s ease-out"}}>-{curLog.dmg}</div>}
               </div>
-
-              {/* VS */}
-              <div style={{textAlign:"center",fontSize:"13px",color:"#78716c",margin:"6px 0"}}>{curLog.type==="card_atk"?`${curLog.cardName} 攻擊！`:`Boss 攻擊 ${curLog.targetName}！`}</div>
-
-              {/* Team Cards HP */}
-              <div style={{display:"flex",gap:"8px",justifyContent:"center",marginBottom:"12px"}}>
-                {curLog.teamHp.map((th,i)=>{
-                  const cid=btlPick[i];if(!cid)return null;
-                  const card=CARD_POOL.find(c=>c.id===cid);
-                  const isHit=curLog.type==="boss_atk"&&curLog.targetIdx===i;
-                  return(<div key={i} style={{flex:1,maxWidth:"120px",textAlign:"center",animation:isHit?"hitShake 0.3s ease":"none",opacity:th.alive?1:0.3}}>
-                    <CImg card={card} sz="xs" lvl={gs.cards[cid]?.level}/>
-                    <div style={{fontSize:"8px",color:th.alive?"#e7e5e4":"#ef4444",marginTop:"3px"}}>{card.name}</div>
-                    <div style={{fontSize:"8px",color:"#78716c",marginBottom:"2px"}}>{Math.max(th.cur,0)}/{th.max}</div>
-                    <HpBar cur={th.cur} max={th.max} h={4}/>
-                    {isHit&&<div style={{fontSize:"11px",color:"#ef4444",fontWeight:700,animation:"dmgFloat 0.8s ease-out"}}>-{curLog.dmg}</div>}
-                  </div>);
-                })}
-              </div>
-
-              {/* Skip button */}
-              {btlCanSkip&&<div style={{textAlign:"center"}}><button onClick={skipBattle} style={{padding:"8px 24px",borderRadius:"10px",border:"1px solid rgba(255,255,255,0.1)",background:"rgba(255,255,255,0.05)",color:"#a8a29e",fontWeight:700,fontSize:"13px",cursor:"pointer",fontFamily:"inherit"}}>⏩ 跳過戰鬥</button></div>}
+              <div style={{textAlign:"center",fontSize:"11px",color:"#78716c",margin:"4px 0"}}>{curLog.type==="card_atk"?`${curLog.cardName} 攻擊！`:`Boss → ${curLog.targetName}！`}</div>
+              <div style={{display:"flex",gap:"5px",justifyContent:"center",marginBottom:"10px"}}>{curLog.teamHp.map((th,i)=>{
+                const isPlayer=i===0;const cid=isPlayer?null:btlPick[i-1];const card=isPlayer?PLAYER_CARD:CARD_POOL.find(c=>c.id===cid);
+                const isHit=curLog.type==="boss_atk"&&curLog.targetIdx===i;
+                return(<div key={i} style={{flex:1,maxWidth:"100px",textAlign:"center",animation:isHit?"hitShake 0.3s":"none",opacity:th.alive?1:0.3}}>
+                  <CImg card={card||{name:"?",img:""}} sz="xs" lvl={isPlayer?gs.level:gs.cards[cid]?.level}/>
+                  <div style={{fontSize:"7px",color:th.alive?"#e7e5e4":"#ef4444",marginTop:"2px"}}>{isPlayer?"主角":card?.name}</div>
+                  <div style={{fontSize:"7px",color:"#78716c"}}>{Math.max(th.cur,0)}/{th.max}</div>
+                  <HpBar cur={th.cur} max={th.max} h={3}/>
+                  {isHit&&<div style={{fontSize:"10px",color:"#ef4444",fontWeight:700,animation:"dmgFloat 0.8s"}}>-{curLog.dmg}</div>}
+                </div>);
+              })}</div>
+              {btlCanSkip&&<div style={{textAlign:"center"}}><button onClick={skipBattle} style={{padding:"7px 20px",borderRadius:"10px",border:"1px solid rgba(255,255,255,0.1)",background:"rgba(255,255,255,0.05)",color:"#a8a29e",fontWeight:700,fontSize:"12px",cursor:"pointer",fontFamily:"inherit"}}>⏩跳過</button></div>}
             </div>}
 
-            {/* RESULT PHASE */}
             {btlPhase==="result"&&btlResult&&<div style={{textAlign:"center",animation:"fadeUp 0.4s ease-out"}}>
-              <div style={{fontSize:"48px",marginBottom:"8px"}}>{btlResult.win?"🏆":"💀"}</div>
-              <div style={{fontSize:"24px",fontWeight:900,color:btlResult.win?"#4ade80":"#ef4444",marginBottom:"6px"}}>{btlResult.win?"勝利！":"戰敗..."}</div>
-              <div style={{fontSize:"13px",color:"#a8a29e",marginBottom:"16px"}}>{btlResult.win?`擊敗了 ${boss.name}！`:`被 ${boss.name} 打敗了`}</div>
-
-              {btlResult.win&&<div style={{padding:"12px",borderRadius:"12px",background:"rgba(34,197,94,0.06)",border:"1px solid rgba(34,197,94,0.2)",marginBottom:"16px"}}>
-                <div style={{fontSize:"12px",color:"#78716c",marginBottom:"4px"}}>戰鬥獎勵</div>
-                <div style={{fontFamily:"'Black Ops One',cursive",fontSize:"18px",color:"#fbbf24"}}>+{50+gs.bossRound*10} XP　+{20+gs.bossRound*5} 🪙</div>
-              </div>}
-
-              <button onClick={claimBattleReward} style={{width:"100%",padding:"14px",borderRadius:"14px",border:`2px solid ${btlResult.win?"rgba(34,197,94,0.5)":"rgba(239,68,68,0.3)"}`,background:btlResult.win?"linear-gradient(135deg,rgba(34,197,94,0.15),rgba(22,163,74,0.1))":"linear-gradient(135deg,rgba(239,68,68,0.1),rgba(0,0,0,0.1))",color:btlResult.win?"#4ade80":"#f87171",fontWeight:900,fontSize:"16px",cursor:"pointer",fontFamily:"inherit"}}>
-                {btlResult.win?"✅ 領取獎勵":"🔄 再挑戰"}
-              </button>
+              <div style={{fontSize:"44px",marginBottom:"6px"}}>{btlResult.win?"🏆":"💀"}</div>
+              <div style={{fontSize:"22px",fontWeight:900,color:btlResult.win?"#4ade80":"#ef4444",marginBottom:"4px"}}>{btlResult.win?"勝利！":"戰敗..."}</div>
+              {btlResult.win&&<div style={{padding:"10px",borderRadius:"12px",background:"rgba(34,197,94,0.06)",border:"1px solid rgba(34,197,94,0.2)",marginBottom:"14px"}}><div style={{fontFamily:"'Black Ops One',cursive",fontSize:"16px",color:"#fbbf24"}}>+{10+gs.bossRound*3}XP +{5+Math.floor(gs.bossRound*1.5)}🪙</div></div>}
+              <button onClick={claimBtl} style={{width:"100%",padding:"12px",borderRadius:"14px",border:`2px solid ${btlResult.win?"rgba(34,197,94,0.5)":"rgba(239,68,68,0.3)"}`,background:btlResult.win?"linear-gradient(135deg,rgba(34,197,94,0.15),rgba(22,163,74,0.1))":"linear-gradient(135deg,rgba(239,68,68,0.1),rgba(0,0,0,0.1))",color:btlResult.win?"#4ade80":"#f87171",fontWeight:900,fontSize:"15px",cursor:"pointer",fontFamily:"inherit"}}>{btlResult.win?"✅領取":"🔄再挑戰"}</button>
             </div>}
           </div>}
 
           {/* ═══ CARDS ═══ */}
           {vw==="cards"&&<div style={{animation:"fadeUp 0.3s ease-out"}}>
-            <div style={{textAlign:"center",marginBottom:"14px",fontSize:"13px",fontWeight:700,color:"#a8a29e"}}>[角色收藏]　{owned}/{CARD_POOL.length}</div>
-            <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:"8px"}}>{CARD_POOL.map(c=>{const o=gs.cards[c.id];const cp=o?cardCP(c,o.level):0;return(<div key={c.id} onClick={()=>o&&setCDet(c)} style={{textAlign:"center",opacity:o?1:0.25,cursor:o?"pointer":"default"}}><CImg card={c} sz="sm" lvl={o?.level}/><div style={{fontSize:"10px",color:o?RC[c.rarity].color:"#57534e",marginTop:"3px",fontWeight:700}}>{c.name}</div>{o&&<div style={{fontSize:"9px",color:"#f97316",fontFamily:"'Black Ops One',cursive"}}>⚔{cp}</div>}{o&&o.copies>0&&<div style={{fontSize:"9px",color:"#fbbf24"}}>碎片×{o.copies}</div>}</div>);})}</div>
-            {owned===0&&<div style={{textAlign:"center",padding:"28px",color:"#57534e",fontSize:"13px"}}>還沒有角色<br/><span style={{fontSize:"11px",color:"#78716c"}}>點 🪙 去抽獎</span></div>}
+            <div style={{textAlign:"center",marginBottom:"12px",fontSize:"12px",fontWeight:700,color:"#a8a29e"}}>[角色收藏] {owned}/{CARD_POOL.length}</div>
+            {/* Player card */}
+            <div style={{padding:"10px",borderRadius:"12px",background:"rgba(6,182,212,0.06)",border:"1px solid rgba(6,182,212,0.2)",marginBottom:"10px",display:"flex",alignItems:"center",gap:"8px"}}>
+              <CImg card={PLAYER_CARD} sz="sm" lvl={gs.level}/>
+              <div><div style={{fontSize:"12px",fontWeight:700,color:"#22d3ee"}}>主角　⚔{pCP}</div><div style={{fontSize:"9px",color:"#78716c"}}>攻{pStats.atk} 防{pStats.def} 速{pStats.spd} HP{pStats.hp}</div><div style={{fontSize:"9px",color:"#78716c"}}>能力值隨訓練成長</div></div>
+            </div>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:"7px"}}>{CARD_POOL.map(c=>{const o=gs.cards[c.id];const cp=o?cardCP(c,o.level,o.stars||0):0;return(<div key={c.id} onClick={()=>o&&setCDet(c)} style={{textAlign:"center",opacity:o?1:0.25,cursor:o?"pointer":"default"}}><CImg card={c} sz="sm" lvl={o?.level} stars={o?.stars}/><div style={{fontSize:"9px",color:o?RC[c.rarity].color:"#57534e",marginTop:"2px",fontWeight:700}}>{c.name}</div>{o&&<div style={{fontSize:"8px",color:"#f97316",fontFamily:"'Black Ops One',cursive"}}>⚔{cp}</div>}</div>);})}</div>
           </div>}
 
           {/* ═══ STATS ═══ */}
           {vw==="stats"&&<div style={{animation:"fadeUp 0.3s ease-out"}}>
-            <div style={{textAlign:"center",marginBottom:"14px",fontSize:"13px",fontWeight:700,color:"#a8a29e"}}>[能力表]</div>
-            <div style={{padding:"18px",borderRadius:"16px",background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.04)"}}>{[{k:"strength",l:"力量",i:"💪",c:"#ef4444"},{k:"stamina",l:"體力",i:"❤️",c:"#22c55e"},{k:"agility",l:"敏捷",i:"⚡",c:"#f59e0b"},{k:"jump",l:"跳躍",i:"🦘",c:"#3b82f6"},{k:"grip",l:"握力",i:"✊",c:"#a855f7"}].map((s,idx)=>{const v=gs.stats[s.k]||0;return(<div key={s.k} style={{display:"flex",alignItems:"center",gap:"9px",marginBottom:idx<4?"12px":0}}><span style={{fontSize:"17px",width:"22px",textAlign:"center"}}>{s.i}</span><span style={{width:"40px",fontSize:"11px",color:"#a8a29e"}}>{s.l}</span><div style={{flex:1,height:"6px",borderRadius:"3px",background:"rgba(255,255,255,0.04)",overflow:"hidden"}}><div style={{height:"100%",borderRadius:"3px",width:`${Math.min((v/Math.max(v,40))*100,100)}%`,background:`linear-gradient(90deg,${s.c},${s.c}88)`}}/></div><span style={{fontFamily:"'Black Ops One',cursive",fontSize:"13px",color:s.c,width:"34px",textAlign:"right"}}>{v}</span></div>);})}</div>
-            <div style={{marginTop:"14px",padding:"14px",borderRadius:"14px",background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.03)"}}><div style={{fontSize:"11px",fontWeight:700,color:"#78716c",marginBottom:"8px",textAlign:"center"}}>[累計]</div><div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:"5px"}}>{Object.entries(gs.totalReps).map(([id,ct])=>{const n={squat:"深蹲",punch:"揮拳",grip:"握力",tuck_jump:"縮腳跳",high_knee:"高抬腿",precision_jump:"精準跳",stair_jump:"跳階梯"}[id]||id;return(<div key={id} style={{padding:"6px",borderRadius:"6px",background:"rgba(255,255,255,0.02)",textAlign:"center"}}><div style={{fontSize:"9px",color:"#78716c"}}>{n}</div><div style={{fontFamily:"'Black Ops One',cursive",fontSize:"14px",color:"#f97316"}}>{ct}</div></div>);})}</div>{Object.keys(gs.totalReps).length===0&&<div style={{textAlign:"center",color:"#57534e",fontSize:"11px"}}>尚無</div>}</div>
-            <div style={{marginTop:"14px",padding:"14px",borderRadius:"14px",background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.03)"}}><div style={{fontSize:"11px",fontWeight:700,color:"#78716c",marginBottom:"6px",textAlign:"center"}}>Lv.{gs.level}/100</div><div style={{height:"8px",borderRadius:"4px",background:"rgba(255,255,255,0.04)",overflow:"hidden"}}><div style={{height:"100%",borderRadius:"4px",width:`${gs.level}%`,background:"linear-gradient(90deg,#ef4444,#f97316,#fbbf24)"}}/></div><div style={{textAlign:"center",marginTop:"4px",fontSize:"10px",color:"#78716c"}}>{gs.level}% 武神之路</div></div>
+            <div style={{textAlign:"center",marginBottom:"12px",fontSize:"12px",fontWeight:700,color:"#a8a29e"}}>[能力表] ⚔主角戰力{pCP}</div>
+            <div style={{padding:"16px",borderRadius:"16px",background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.04)"}}>{[{k:"strength",l:"力量",i:"💪",c:"#ef4444"},{k:"stamina",l:"體力",i:"❤️",c:"#22c55e"},{k:"agility",l:"敏捷",i:"⚡",c:"#f59e0b"},{k:"jump",l:"跳躍",i:"🦘",c:"#3b82f6"},{k:"grip",l:"握力",i:"✊",c:"#a855f7"}].map((s,idx)=>{const v=gs.stats[s.k]||0;return(<div key={s.k} style={{display:"flex",alignItems:"center",gap:"8px",marginBottom:idx<4?"10px":0}}><span style={{fontSize:"16px",width:"20px",textAlign:"center"}}>{s.i}</span><span style={{width:"36px",fontSize:"10px",color:"#a8a29e"}}>{s.l}</span><div style={{flex:1,height:"5px",borderRadius:"3px",background:"rgba(255,255,255,0.04)",overflow:"hidden"}}><div style={{height:"100%",borderRadius:"3px",width:`${Math.min((v/Math.max(v,40))*100,100)}%`,background:`linear-gradient(90deg,${s.c},${s.c}88)`}}/></div><span style={{fontFamily:"'Black Ops One',cursive",fontSize:"12px",color:s.c,width:"30px",textAlign:"right"}}>{v}</span></div>);})}</div>
+            <div style={{marginTop:"12px",padding:"12px",borderRadius:"14px",background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.03)"}}><div style={{fontSize:"10px",fontWeight:700,color:"#78716c",marginBottom:"6px",textAlign:"center"}}>[累計]</div><div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:"4px"}}>{Object.entries(gs.totalReps).map(([id,ct])=>{const n={squat:"深蹲",punch:"揮拳",grip:"握力",tuck_jump:"縮腳跳",high_knee:"高抬腿",precision_jump:"精準跳",stair_jump:"跳階梯"}[id]||id;return(<div key={id} style={{padding:"4px",borderRadius:"5px",background:"rgba(255,255,255,0.02)",textAlign:"center"}}><div style={{fontSize:"8px",color:"#78716c"}}>{n}</div><div style={{fontFamily:"'Black Ops One',cursive",fontSize:"13px",color:"#f97316"}}>{ct}</div></div>);})}</div>{Object.keys(gs.totalReps).length===0&&<div style={{textAlign:"center",color:"#57534e",fontSize:"10px"}}>尚無</div>}</div>
+            <div style={{marginTop:"12px",padding:"12px",borderRadius:"14px",background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.03)"}}><div style={{fontSize:"10px",fontWeight:700,color:"#78716c",marginBottom:"5px",textAlign:"center"}}>Lv.{gs.level}/1000</div><div style={{height:"7px",borderRadius:"4px",background:"rgba(255,255,255,0.04)",overflow:"hidden"}}><div style={{height:"100%",borderRadius:"4px",width:`${gs.level/10}%`,background:"linear-gradient(90deg,#ef4444,#f97316,#fbbf24)"}}/></div><div style={{textAlign:"center",marginTop:"3px",fontSize:"9px",color:"#78716c"}}>{(gs.level/10).toFixed(1)}% 武神之路</div></div>
           </div>}
 
           {/* ═══ SKILLS ═══ */}
           {vw==="skills"&&<div style={{animation:"fadeUp 0.3s ease-out"}}>
-            <div style={{textAlign:"center",marginBottom:"14px",fontSize:"13px",fontWeight:700,color:"#a8a29e"}}>[技能]</div>
+            <div style={{textAlign:"center",marginBottom:"12px",fontSize:"12px",fontWeight:700,color:"#a8a29e"}}>[技能]</div>
             {SKILLS.map(sk=>{const u=(gs.skills||[]).includes(sk.id)||(gs.unlockedSkills||[]).includes(sk.id);return(
-              <div key={sk.id} style={{marginBottom:"9px",padding:"14px 16px",borderRadius:"14px",background:u?"linear-gradient(135deg,rgba(239,68,68,0.06),rgba(249,115,22,0.04))":"rgba(255,255,255,0.01)",border:`1px solid ${u?"rgba(249,115,22,0.25)":"rgba(255,255,255,0.03)"}`,opacity:u?1:0.4}}>
-                <div style={{display:"flex",alignItems:"center",gap:"9px",marginBottom:"5px"}}><span style={{fontSize:"24px",filter:u?"none":"grayscale(1)"}}>{sk.icon}</span><div><div style={{fontSize:"15px",fontWeight:700,color:u?"#fbbf24":"#57534e"}}>{sk.name}</div><span style={{fontSize:"9px",padding:"1px 5px",borderRadius:"3px",background:sk.type==="passive"?"rgba(34,197,94,0.12)":"rgba(59,130,246,0.12)",color:sk.type==="passive"?"#4ade80":"#60a5fa"}}>{sk.type==="passive"?"被動":"主動"}</span></div><div style={{marginLeft:"auto",fontSize:"10px",color:"#78716c"}}>Lv.{sk.lv}</div></div>
-                <div style={{fontSize:"11px",color:u?"#a8a29e":"#57534e",lineHeight:1.7}}>{u?sk.desc:"《未解鎖》"}</div>
+              <div key={sk.id} style={{marginBottom:"8px",padding:"12px 14px",borderRadius:"14px",background:u?"linear-gradient(135deg,rgba(239,68,68,0.06),rgba(249,115,22,0.04))":"rgba(255,255,255,0.01)",border:`1px solid ${u?"rgba(249,115,22,0.25)":"rgba(255,255,255,0.03)"}`,opacity:u?1:0.4}}>
+                <div style={{display:"flex",alignItems:"center",gap:"8px",marginBottom:"4px"}}><span style={{fontSize:"22px",filter:u?"none":"grayscale(1)"}}>{sk.icon}</span><div><div style={{fontSize:"14px",fontWeight:700,color:u?"#fbbf24":"#57534e"}}>{sk.name}</div><span style={{fontSize:"8px",padding:"1px 4px",borderRadius:"3px",background:sk.type==="passive"?"rgba(34,197,94,0.12)":"rgba(59,130,246,0.12)",color:sk.type==="passive"?"#4ade80":"#60a5fa"}}>{sk.type==="passive"?"被動":"主動"}</span></div><div style={{marginLeft:"auto",fontSize:"9px",color:"#78716c"}}>Lv.{sk.lv}</div></div>
+                <div style={{fontSize:"10px",color:u?"#a8a29e":"#57534e",lineHeight:1.7}}>{u?sk.desc:"《未解鎖》"}</div>
               </div>);})}
           </div>}
         </div>
