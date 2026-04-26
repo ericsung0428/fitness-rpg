@@ -98,6 +98,20 @@ function rollMaterial(){
   return"R";
 }
 
+// Star material drop from battle win. Higher boss round = better odds & rarity
+function rollBattleMaterial(bossRound){
+  // Base drop chance 60%, scales up to 90% at round 50+
+  const chance=Math.min(0.6+bossRound*0.006,0.90);
+  if(Math.random()>chance)return null;
+  // Rarity: SSR chance scales with round
+  const r=Math.random();
+  const ssrThresh=Math.min(0.03+bossRound*0.003,0.20);
+  const srThresh=Math.min(0.12+bossRound*0.005,0.40);
+  if(r<ssrThresh)return"SSR";
+  if(r<srThresh)return"SR";
+  return"R";
+}
+
 /* ═══ COMPONENTS ═══ */
 function CImg({card,sz="full",lvl,sel,dim,stars}){
   const[err,setErr]=useState(false);const rc=card.rarity?RC[card.rarity]:{color:"#22d3ee",border:"#06b6d4",glow:"rgba(6,182,212,0.4)",bg:"#164e63"};
@@ -139,6 +153,7 @@ export default function App(){
   const[btlStep,setBtlStep]=useState(0);
   const[btlResult,setBtlResult]=useState(null);
   const[btlCanSkip,setBtlCanSkip]=useState(false);
+  const[btlMatDrop,setBtlMatDrop]=useState(null);
   const[showMail,setShowMail]=useState(false);
   const btlTimer=useRef(null);const skipRef=useRef(null);const nr=useRef(null);const tapRef=useRef(null);const audioRef=useRef(null);
 
@@ -229,8 +244,14 @@ export default function App(){
   function skipBattle(){if(btlTimer.current)clearInterval(btlTimer.current);if(skipRef.current)clearTimeout(skipRef.current);if(btlLog.length>0)setBtlStep(btlLog.length-1);setTimeout(()=>setBtlPhase("result"),200);}
   function claimBtl(){
     if(btlResult?.win){const gR=5+Math.floor(gs.bossRound*1.5);const xR=10+gs.bossRound*3;
-      setGs(p=>{let nX=p.xp+xR,nL=p.level,nM=p.maxHp;while(nL<1000&&nX>=xpFor(nL+1)){nL++;nM+=5;}return{...p,gold:p.gold+gR,xp:nX,level:nL,maxHp:nM,bossRound:p.bossRound+1};});
-      noti(`🏆 +${xR}XP +${gR}🪙`,"success");}
+      const matDrop=rollBattleMaterial(gs.bossRound);
+      setBtlMatDrop(matDrop);
+      setGs(p=>{let nX=p.xp+xR,nL=p.level,nM=p.maxHp;while(nL<1000&&nX>=xpFor(nL+1)){nL++;nM+=5;}
+        const newMats={...p.starMats};if(matDrop)newMats[matDrop]=(newMats[matDrop]||0)+1;
+        return{...p,gold:p.gold+gR,xp:nX,level:nL,maxHp:nM,bossRound:p.bossRound+1,starMats:newMats};});
+      let msg=`🏆 +${xR}XP +${gR}🪙`;
+      if(matDrop)msg+=` ⭐+1 ${matDrop}升星素材！`;
+      noti(msg,"success");}
     setBtlPhase("prep");setBtlPick([]);setBtlLog([]);setBtlStep(0);setBtlResult(null);setBtlCanSkip(false);
   }
 
@@ -440,8 +461,11 @@ export default function App(){
             {btlPhase==="result"&&btlResult&&<div style={{textAlign:"center",animation:"fadeUp 0.4s ease-out"}}>
               <div style={{fontSize:"44px",marginBottom:"6px"}}>{btlResult.win?"🏆":"💀"}</div>
               <div style={{fontSize:"22px",fontWeight:900,color:btlResult.win?"#4ade80":"#ef4444",marginBottom:"4px"}}>{btlResult.win?"勝利！":"戰敗..."}</div>
-              {btlResult.win&&<div style={{padding:"10px",borderRadius:"12px",background:"rgba(34,197,94,0.06)",border:"1px solid rgba(34,197,94,0.2)",marginBottom:"14px"}}><div style={{fontFamily:"'Black Ops One',cursive",fontSize:"16px",color:"#fbbf24"}}>+{10+gs.bossRound*3}XP +{5+Math.floor(gs.bossRound*1.5)}🪙</div></div>}
-              <button onClick={claimBtl} style={{width:"100%",padding:"12px",borderRadius:"14px",border:`2px solid ${btlResult.win?"rgba(34,197,94,0.5)":"rgba(239,68,68,0.3)"}`,background:btlResult.win?"linear-gradient(135deg,rgba(34,197,94,0.15),rgba(22,163,74,0.1))":"linear-gradient(135deg,rgba(239,68,68,0.1),rgba(0,0,0,0.1))",color:btlResult.win?"#4ade80":"#f87171",fontWeight:900,fontSize:"15px",cursor:"pointer",fontFamily:"inherit"}}>{btlResult.win?"✅領取":"🔄再挑戰"}</button>
+              {btlResult.win&&<div style={{padding:"10px",borderRadius:"12px",background:"rgba(34,197,94,0.06)",border:"1px solid rgba(34,197,94,0.2)",marginBottom:"8px"}}>
+                <div style={{fontFamily:"'Black Ops One',cursive",fontSize:"16px",color:"#fbbf24",marginBottom:"4px"}}>+{10+gs.bossRound*3}XP +{5+Math.floor(gs.bossRound*1.5)}🪙</div>
+                <div style={{fontSize:"11px",color:"#a8a29e"}}>⭐ 升星素材掉落率：{Math.round(Math.min(0.6+gs.bossRound*0.006,0.90)*100)}%（領取後揭曉）</div>
+              </div>}
+              <button onClick={claimBtl} style={{width:"100%",padding:"12px",borderRadius:"14px",border:`2px solid ${btlResult.win?"rgba(34,197,94,0.5)":"rgba(239,68,68,0.3)"}`,background:btlResult.win?"linear-gradient(135deg,rgba(34,197,94,0.15),rgba(22,163,74,0.1))":"linear-gradient(135deg,rgba(239,68,68,0.1),rgba(0,0,0,0.1))",color:btlResult.win?"#4ade80":"#f87171",fontWeight:900,fontSize:"15px",cursor:"pointer",fontFamily:"inherit"}}>{btlResult.win?"✅領取獎勵":"🔄再挑戰"}</button>
             </div>}
           </div>}
 
