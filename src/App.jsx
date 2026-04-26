@@ -2,35 +2,35 @@ import { useState, useEffect, useRef } from "react";
 
 /* ═══ CARD DATA ═══ */
 const CARD_POOL = [
-  { id:"c01",name:"新手冒險者",rarity:"R",img:"/cards/card_01.jpg",base:{atk:28,def:38,spd:35,hp:50} },
-  { id:"c04",name:"宅邸守衛",rarity:"R",img:"/cards/card_04.jpg",base:{atk:30,def:42,spd:28,hp:52} },
-  { id:"c08",name:"幻獸使者",rarity:"R",img:"/cards/card_08.jpg",base:{atk:32,def:30,spd:42,hp:48} },
-  { id:"c09",name:"街頭鬥士",rarity:"R",img:"/cards/card_09.jpg",base:{atk:40,def:32,spd:36,hp:44} },
-  { id:"c10",name:"暗夜行者",rarity:"R",img:"/cards/card_10.jpg",base:{atk:35,def:35,spd:40,hp:42} },
-  { id:"c02",name:"鐵拳戰士",rarity:"SR",img:"/cards/card_02.jpg",base:{atk:65,def:52,spd:48,hp:62} },
-  { id:"c03",name:"美食獵人",rarity:"SR",img:"/cards/card_03.jpg",base:{atk:48,def:58,spd:62,hp:65} },
-  { id:"c05",name:"都市行者",rarity:"SR",img:"/cards/card_05.jpg",base:{atk:52,def:50,spd:68,hp:58} },
-  { id:"c11",name:"次元行者",rarity:"SR",img:"/cards/card_11.jpg",base:{atk:55,def:62,spd:55,hp:60} },
-  { id:"c06",name:"暗影獵手",rarity:"SSR",img:"/cards/card_06.jpg",base:{atk:110,def:88,spd:98,hp:115} },
-  { id:"c07",name:"魔王覺醒",rarity:"SSR",img:"/cards/card_07.jpg",base:{atk:118,def:92,spd:88,hp:110} },
+  { id:"c01",pool:1,name:"新手冒險者",rarity:"R",img:"/cards/card_01.jpg",base:{atk:28,def:38,spd:35,hp:50} },
+  { id:"c04",pool:1,name:"宅邸守衛",rarity:"R",img:"/cards/card_04.jpg",base:{atk:30,def:42,spd:28,hp:52} },
+  { id:"c08",pool:1,name:"幻獸使者",rarity:"R",img:"/cards/card_08.jpg",base:{atk:32,def:30,spd:42,hp:48} },
+  { id:"c09",pool:1,name:"街頭鬥士",rarity:"R",img:"/cards/card_09.jpg",base:{atk:40,def:32,spd:36,hp:44} },
+  { id:"c10",pool:1,name:"暗夜行者",rarity:"R",img:"/cards/card_10.jpg",base:{atk:35,def:35,spd:40,hp:42} },
+  { id:"c02",pool:1,name:"鐵拳戰士",rarity:"SR",img:"/cards/card_02.jpg",base:{atk:65,def:52,spd:48,hp:62} },
+  { id:"c03",pool:1,name:"美食獵人",rarity:"SR",img:"/cards/card_03.jpg",base:{atk:48,def:58,spd:62,hp:65} },
+  { id:"c05",pool:1,name:"都市行者",rarity:"SR",img:"/cards/card_05.jpg",base:{atk:52,def:50,spd:68,hp:58} },
+  { id:"c11",pool:1,name:"次元行者",rarity:"SR",img:"/cards/card_11.jpg",base:{atk:55,def:62,spd:55,hp:60} },
+  { id:"c06",pool:1,name:"暗影獵手",rarity:"SSR",img:"/cards/card_06.jpg",base:{atk:110,def:88,spd:98,hp:115} },
+  { id:"c07",pool:1,name:"魔王覺醒",rarity:"SSR",img:"/cards/card_07.jpg",base:{atk:118,def:92,spd:88,hp:110} },
   // ── 第二彈 ──
-  { id:"c12",name:"山田杏奈",rarity:"R",  img:"/cards/card_12.jpg",base:{atk:30,def:36,spd:38,hp:46} },
-  { id:"c13",name:"椎名真晝",rarity:"SSR",img:"/cards/card_13.jpg",base:{atk:105,def:115,spd:92,hp:120} },
-  { id:"c14",name:"闇影大人",rarity:"SR", img:"/cards/card_14.jpg",base:{atk:72,def:55,spd:78,hp:62} },
-  { id:"c15",name:"錦木千束",rarity:"SSR",img:"/cards/card_15.jpg",base:{atk:120,def:85,spd:125,hp:105} },
-  { id:"c16",name:"艾莉",    rarity:"R",  img:"/cards/card_16.jpg",base:{atk:28,def:40,spd:35,hp:50} },
-  { id:"c17",name:"瑪夏",    rarity:"R",  img:"/cards/card_17.jpg",base:{atk:35,def:35,spd:40,hp:48} },
-  { id:"c18",name:"周防有希",rarity:"SR", img:"/cards/card_18.jpg",base:{atk:58,def:65,spd:52,hp:68} },
-  { id:"c19",name:"百鬼綾目",rarity:"SR", img:"/cards/card_19.jpg",base:{atk:62,def:50,spd:70,hp:60} },
-  { id:"c20",name:"櫻島麻衣",rarity:"SR", img:"/cards/card_20.jpg",base:{atk:55,def:60,spd:58,hp:70} },
-  { id:"c21",name:"木更",    rarity:"R",  img:"/cards/card_21.jpg",base:{atk:32,def:34,spd:42,hp:44} },
-  { id:"c22",name:"亞絲娜",  rarity:"SR", img:"/cards/card_22.jpg",base:{atk:68,def:58,spd:65,hp:65} },
-  { id:"c23",name:"桐人",    rarity:"SR", img:"/cards/card_23.jpg",base:{atk:75,def:52,spd:72,hp:60} },
+  { id:"c12",pool:2,name:"山田杏奈",rarity:"R",  img:"/cards/card_12.jpg",base:{atk:30,def:36,spd:38,hp:46} },
+  { id:"c13",pool:2,name:"椎名真晝",rarity:"SSR",img:"/cards/card_13.jpg",base:{atk:105,def:115,spd:92,hp:120} },
+  { id:"c14",pool:2,name:"闇影大人",rarity:"SR", img:"/cards/card_14.jpg",base:{atk:72,def:55,spd:78,hp:62} },
+  { id:"c15",pool:2,name:"錦木千束",rarity:"SSR",img:"/cards/card_15.jpg",base:{atk:120,def:85,spd:125,hp:105} },
+  { id:"c16",pool:2,name:"艾莉",    rarity:"R",  img:"/cards/card_16.jpg",base:{atk:28,def:40,spd:35,hp:50} },
+  { id:"c17",pool:2,name:"瑪夏",    rarity:"R",  img:"/cards/card_17.jpg",base:{atk:35,def:35,spd:40,hp:48} },
+  { id:"c18",pool:2,name:"周防有希",rarity:"SR", img:"/cards/card_18.jpg",base:{atk:58,def:65,spd:52,hp:68} },
+  { id:"c19",pool:2,name:"百鬼綾目",rarity:"SR", img:"/cards/card_19.jpg",base:{atk:62,def:50,spd:70,hp:60} },
+  { id:"c20",pool:2,name:"櫻島麻衣",rarity:"SR", img:"/cards/card_20.jpg",base:{atk:55,def:60,spd:58,hp:70} },
+  { id:"c21",pool:2,name:"木更",    rarity:"R",  img:"/cards/card_21.jpg",base:{atk:32,def:34,spd:42,hp:44} },
+  { id:"c22",pool:2,name:"亞絲娜",  rarity:"SR", img:"/cards/card_22.jpg",base:{atk:68,def:58,spd:65,hp:65} },
+  { id:"c23",pool:2,name:"桐人",    rarity:"SR", img:"/cards/card_23.jpg",base:{atk:75,def:52,spd:72,hp:60} },
 ];
 const RC={R:{color:"#60a5fa",border:"#3b82f6",glow:"rgba(59,130,246,0.3)",bg:"#1e3a5f"},SR:{color:"#c084fc",border:"#8b5cf6",glow:"rgba(139,92,246,0.4)",bg:"#4a1d7a"},SSR:{color:"#fbbf24",border:"#f59e0b",glow:"rgba(251,191,36,0.5)",bg:"#78350f"}};
 
-function pullOne(){const r=Math.random();const rar=r<0.03?"SSR":r<0.20?"SR":"R";const p=CARD_POOL.filter(c=>c.rarity===rar);return p[Math.floor(Math.random()*p.length)];}
-function pullTen(){const r=Array.from({length:10},()=>pullOne());if(!r.some(c=>c.rarity!=="R")){const sr=CARD_POOL.filter(c=>c.rarity==="SR"||c.rarity==="SSR");r[9]=sr[Math.floor(Math.random()*sr.length)];}return r;}
+function pullOne(pool){const r=Math.random();const rar=r<0.03?"SSR":r<0.20?"SR":"R";const p=CARD_POOL.filter(c=>c.rarity===rar&&c.pool===pool);return p.length?p[Math.floor(Math.random()*p.length)]:CARD_POOL.filter(c=>c.pool===pool)[0];}
+function pullTen(pool){const r=Array.from({length:10},()=>pullOne(pool));if(!r.some(c=>c.rarity!=="R")){const sr=CARD_POOL.filter(c=>(c.rarity==="SR"||c.rarity==="SSR")&&c.pool===pool);if(sr.length)r[9]=sr[Math.floor(Math.random()*sr.length)];}return r;}
 
 // Card stats with level + star scaling. Each star = 1.5x
 function cStats(c,lv,stars=0){const rates={R:0.06,SR:0.12,SSR:0.20};const m=1+(lv-1)*(rates[c.rarity]||0.12);const sm=Math.pow(1.5,stars);return{atk:Math.floor(c.base.atk*m*sm),def:Math.floor(c.base.def*m*sm),spd:Math.floor(c.base.spd*m*sm),hp:Math.floor(c.base.hp*m*sm)};}
@@ -117,7 +117,7 @@ function CImg({card,sz="full",lvl,sel,dim,stars}){
   const w=sz==="xs"?56:sz==="sm"?76:sz==="md"?110:150,h=Math.floor(w*4/3);
   const starStr=stars?"★".repeat(stars):"";
   return(<div style={{width:w,height:h,borderRadius:sz==="xs"?6:sz==="sm"?8:12,overflow:"hidden",position:"relative",border:`2.5px solid ${sel?"#4ade80":rc.border}`,boxShadow:sel?`0 0 16px rgba(34,197,94,0.5)`:`0 0 ${sz==="sm"?8:14}px ${rc.glow}`,flexShrink:0,opacity:dim?0.35:1,transition:"all 0.2s"}}>
-    {!err?<img src={card.img} alt="" style={{width:"100%",height:"100%",objectFit:"cover",display:"block"}} onError={()=>setErr(true)}/>:
+    {!err?<img src={card.img} alt="" style={{width:"100%",height:"100%",objectFit:"cover",objectPosition:card.id==="c21"?"center 30%":"top center",display:"block"}} onError={()=>setErr(true)}/>:
     <div style={{width:"100%",height:"100%",background:rc.bg,display:"flex",alignItems:"center",justifyContent:"center",fontSize:w*0.25,color:"rgba(255,255,255,0.6)",fontWeight:900}}>{card.name?card.name[0]:"?"}</div>}
     {card.rarity&&<div style={{position:"absolute",top:2,left:2,padding:"0px 4px",borderRadius:3,background:rc.border,color:"#fff",fontSize:sz==="xs"?6:sz==="sm"?7:10,fontWeight:900}}>{card.rarity}</div>}
     {!card.rarity&&<div style={{position:"absolute",top:2,left:2,padding:"0px 4px",borderRadius:3,background:"#06b6d4",color:"#fff",fontSize:sz==="xs"?6:sz==="sm"?7:10,fontWeight:900}}>主角</div>}
@@ -139,6 +139,7 @@ export default function App(){
   const[shkId,setShkId]=useState(null);
   const[gP,setGP]=useState(false);
   const[shop,setShop]=useState(false);
+  const[shopPool,setShopPool]=useState(1);
   const[pullRes,setPullRes]=useState(null);
   const[pulling,setPulling]=useState(false);
   const[cDet,setCDet]=useState(null);
@@ -206,7 +207,7 @@ export default function App(){
 
   function nextRd(){if(gs.completedAt&&!canNextRound(gs.completedAt)){noti("需等到 04:00！");return;}setGs(p=>{const n=p.round+1;return{...p,round:n,progress:{},curEx:getEx(n),cleared:p.cleared+1,completedAt:null};});setRdClr(false);noti("🔥 新挑戰開始！","success");}
 
-  function doPull(cnt){if(gs.gold<cnt){noti("金幣不足！");return;}setPulling(true);setTimeout(()=>{const res=cnt===1?[pullOne()]:pullTen();setGs(p=>{const nc={...p.cards};res.forEach(c=>{if(nc[c.id])nc[c.id]={...nc[c.id],copies:nc[c.id].copies+1};else nc[c.id]={level:1,copies:0,stars:0};});return{...p,gold:p.gold-cnt,cards:nc};});setPullRes(res);setPulling(false);},800);}
+  function doPull(cnt){if(gs.gold<cnt){noti("金幣不足！");return;}setPulling(true);setTimeout(()=>{const res=cnt===1?[pullOne(shopPool)]:pullTen(shopPool);setGs(p=>{const nc={...p.cards};res.forEach(c=>{if(nc[c.id])nc[c.id]={...nc[c.id],copies:nc[c.id].copies+1};else nc[c.id]={level:1,copies:0,stars:0};});return{...p,gold:p.gold-cnt,cards:nc};});setPullRes(res);setPulling(false);},800);}
 
   function upCard(cid,max){
     setGs(p=>{const cd=p.cards[cid];if(!cd||cd.copies<1)return p;
@@ -304,18 +305,28 @@ export default function App(){
 
       {/* SHOP */}
       {shop&&!pullRes&&<div style={{position:"fixed",inset:0,zIndex:250,background:"rgba(0,0,0,0.93)",backdropFilter:"blur(12px)",overflow:"auto",WebkitOverflowScrolling:"touch"}}><div style={{maxWidth:460,margin:"0 auto",padding:"54px 16px 30px"}}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"14px"}}><div style={{fontSize:"18px",fontWeight:900,color:"#fbbf24"}}>🎰 抽獎商店</div><button onClick={()=>setShop(false)} style={{background:"none",border:"none",color:"#78716c",fontSize:"24px",cursor:"pointer"}}>✕</button></div>
-        <div style={{display:"flex",alignItems:"center",gap:"6px",marginBottom:"14px",padding:"8px 14px",borderRadius:"10px",background:"rgba(251,191,36,0.08)",border:"1px solid rgba(251,191,36,0.2)"}}><span>🪙</span><span style={{fontFamily:"'Black Ops One',cursive",color:"#fbbf24",fontSize:"18px"}}>{gs.gold}</span></div>
-        <div style={{padding:"16px",borderRadius:"16px",background:"linear-gradient(135deg,rgba(251,191,36,0.06),rgba(239,68,68,0.04))",border:"1px solid rgba(251,191,36,0.15)",marginBottom:"14px",textAlign:"center"}}>
-          <div style={{fontSize:"13px",fontWeight:900,color:"#fbbf24",letterSpacing:"4px",marginBottom:"8px"}}>《 第一彈卡池 》</div>
-          <div style={{display:"flex",justifyContent:"center",gap:"6px",marginBottom:"10px"}}>{CARD_POOL.filter(c=>c.rarity==="SSR").map(c=>(<CImg key={c.id} card={c} sz="sm"/>))}</div>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"12px"}}>
+          <div style={{fontSize:"18px",fontWeight:900,color:"#fbbf24"}}>🎰 抽獎商店</div>
+          <button onClick={()=>setShop(false)} style={{background:"none",border:"none",color:"#78716c",fontSize:"24px",cursor:"pointer"}}>✕</button>
+        </div>
+        <div style={{display:"flex",alignItems:"center",gap:"6px",marginBottom:"12px",padding:"8px 14px",borderRadius:"10px",background:"rgba(251,191,36,0.08)",border:"1px solid rgba(251,191,36,0.2)"}}><span>🪙</span><span style={{fontFamily:"'Black Ops One',cursive",color:"#fbbf24",fontSize:"18px"}}>{gs.gold}</span></div>
+        {/* Pool selector tabs */}
+        <div style={{display:"flex",gap:"4px",marginBottom:"12px",background:"rgba(255,255,255,0.03)",borderRadius:"12px",padding:"3px"}}>
+          {[{p:1,l:"⚔️ 第一彈"},{p:2,l:"✨ 第二彈"}].map(({p,l})=>(<button key={p} onClick={()=>setShopPool(p)} style={{flex:1,padding:"9px",borderRadius:"9px",border:"none",cursor:"pointer",fontFamily:"inherit",fontWeight:900,fontSize:"13px",background:shopPool===p?"linear-gradient(135deg,rgba(251,191,36,0.2),rgba(239,68,68,0.12))":"transparent",color:shopPool===p?"#fbbf24":"#57534e",transition:"all 0.2s"}}>{l}</button>))}
+        </div>
+        {/* Current pool preview */}
+        <div style={{padding:"14px",borderRadius:"16px",background:"linear-gradient(135deg,rgba(251,191,36,0.06),rgba(239,68,68,0.04))",border:"1px solid rgba(251,191,36,0.15)",marginBottom:"12px",textAlign:"center"}}>
+          <div style={{fontSize:"12px",fontWeight:900,color:"#fbbf24",letterSpacing:"3px",marginBottom:"8px"}}>《 {shopPool===1?"第一彈":"第二彈"} 卡池 》</div>
+          <div style={{display:"flex",justifyContent:"center",gap:"6px",flexWrap:"wrap",marginBottom:"8px"}}>{CARD_POOL.filter(c=>c.rarity==="SSR"&&c.pool===shopPool).map(c=>(<CImg key={c.id} card={c} sz="sm"/>))}</div>
           <div style={{fontSize:"10px",color:"#a8a29e"}}>SSR 3% ｜ SR 17% ｜ R 80%</div>
         </div>
-        <div style={{display:"flex",gap:"10px",marginBottom:"16px"}}>
+        {/* Pull buttons */}
+        <div style={{display:"flex",gap:"10px",marginBottom:"14px"}}>
           <button onClick={()=>doPull(1)} disabled={pulling||gs.gold<1} style={{flex:1,padding:"12px",borderRadius:"14px",border:"2px solid rgba(251,191,36,0.4)",background:"linear-gradient(135deg,rgba(251,191,36,0.1),rgba(249,115,22,0.06))",color:"#fbbf24",fontWeight:900,fontSize:"15px",cursor:"pointer",fontFamily:"inherit",opacity:gs.gold<1?0.4:1}}>單抽 🪙1</button>
           <button onClick={()=>doPull(10)} disabled={pulling||gs.gold<10} style={{flex:1,padding:"12px",borderRadius:"14px",border:"2px solid rgba(239,68,68,0.4)",background:"linear-gradient(135deg,rgba(239,68,68,0.12),rgba(249,115,22,0.08))",color:"#f97316",fontWeight:900,fontSize:"15px",cursor:"pointer",fontFamily:"inherit",opacity:gs.gold<10?0.4:1}}>十抽 🪙10</button>
         </div>
-        {["SSR","SR","R"].map(r=>(<div key={r} style={{marginBottom:"8px"}}><div style={{fontSize:"9px",fontWeight:700,color:RC[r].color,marginBottom:"3px"}}>{r}</div><div style={{display:"flex",gap:"5px",overflowX:"auto",paddingBottom:"3px"}}>{CARD_POOL.filter(c=>c.rarity===r).map(c=>(<div key={c.id} style={{textAlign:"center",flexShrink:0}}><CImg card={c} sz="sm"/><div style={{fontSize:"8px",color:"#a8a29e",marginTop:"2px"}}>{c.name}</div></div>))}</div></div>))}
+        {/* Card list for current pool */}
+        {["SSR","SR","R"].map(r=>(<div key={r} style={{marginBottom:"8px"}}><div style={{fontSize:"9px",fontWeight:700,color:RC[r].color,marginBottom:"3px"}}>{r}</div><div style={{display:"flex",gap:"5px",overflowX:"auto",paddingBottom:"3px"}}>{CARD_POOL.filter(c=>c.rarity===r&&c.pool===shopPool).map(c=>(<div key={c.id} style={{textAlign:"center",flexShrink:0}}><CImg card={c} sz="sm"/><div style={{fontSize:"8px",color:"#a8a29e",marginTop:"2px"}}>{c.name}</div></div>))}</div></div>))}
       </div></div>}
 
       {/* PULL RESULT */}
