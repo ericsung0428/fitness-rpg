@@ -139,8 +139,6 @@ export default function App(){
   const[btlStep,setBtlStep]=useState(0);
   const[btlResult,setBtlResult]=useState(null);
   const[btlCanSkip,setBtlCanSkip]=useState(false);
-  const[btlMatDrop,setBtlMatDrop]=useState(null);
-  const[showBag,setShowBag]=useState(false);
   const[showMail,setShowMail]=useState(false);
   const btlTimer=useRef(null);const skipRef=useRef(null);const nr=useRef(null);const tapRef=useRef(null);const audioRef=useRef(null);
 
@@ -237,8 +235,12 @@ export default function App(){
   }
 
   function toggleMusic(){
-    setGs(p=>({...p,musicOn:!p.musicOn}));
-    if(audioRef.current){if(gs.musicOn)audioRef.current.pause();else{audioRef.current.play().catch(()=>{});}}
+    const nowOn=!gs.musicOn;
+    setGs(p=>({...p,musicOn:nowOn}));
+    if(audioRef.current){
+      if(nowOn){audioRef.current.volume=0.6;audioRef.current.play().catch(e=>console.log("play failed:",e));}
+      else{audioRef.current.pause();}
+    }
   }
 
   function resetAll(){if(window.confirm("⚠️ 確定重置？")){localStorage.removeItem(SK);setGs({...DEF,curEx:getEx(1)});setInp({});}}
@@ -251,7 +253,7 @@ export default function App(){
   return(
     <div style={{minHeight:"100vh",minHeight:"100dvh",background:"#080000",color:"#f0e6e6",fontFamily:"'Noto Sans TC',sans-serif",position:"relative",overflow:"hidden",overflowX:"hidden",width:"100%",WebkitTapHighlightColor:"transparent",overscrollBehavior:"none"}}>
       <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;700;900&family=Black+Ops+One&display=swap" rel="stylesheet"/>
-      <audio ref={audioRef} src="/music/bgm.mp3" loop preload="none"/>
+      <audio ref={audioRef} src="/music/bgm.mp3" loop preload="auto"/>
       <style>{`
         *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
         html,body{overscroll-behavior:none;margin:0;padding:0;overflow-x:hidden;width:100%}
@@ -346,47 +348,34 @@ export default function App(){
             <div style={{fontFamily:"'Black Ops One',cursive",fontSize:"40px",background:"linear-gradient(135deg,#ef4444,#f97316,#fbbf24,#ef4444)",backgroundSize:"300% 300%",animation:"burnText 4s ease infinite",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",letterSpacing:"3px"}}>Lv.{gs.level}</div>
             <div style={{fontSize:"11px",color:rank.c,fontWeight:700,letterSpacing:"3px"}}>[{rank.t}]</div>
           </div>
-
+          {/* Music + Mail buttons */}
+          <div style={{position:"absolute",top:"12px",right:"12px",display:"flex",gap:"8px"}}>
+            <button onClick={()=>setShowMail(true)} style={{background:"rgba(0,0,0,0.5)",border:"none",borderRadius:"50%",width:36,height:36,cursor:"pointer",fontSize:"16px",position:"relative"}}>📬{unclaimedMail>0&&<div style={{position:"absolute",top:-2,right:-2,width:14,height:14,borderRadius:7,background:"#ef4444",fontSize:"8px",color:"#fff",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:900}}>{unclaimedMail}</div>}</button>
+            <button onClick={toggleMusic} style={{background:"rgba(0,0,0,0.5)",border:"none",borderRadius:"50%",width:36,height:36,cursor:"pointer",fontSize:"16px"}}>{gs.musicOn?"🔊":"🔇"}</button>
+          </div>
         </div>
 
         <div style={{padding:"0 14px",overflow:"hidden"}}>
-          <div style={{display:"flex",justifyContent:"center",gap:"12px",marginBottom:"8px",fontSize:"10px",color:"#78716c",padding:"5px 0",borderBottom:"1px solid rgba(255,255,255,0.04)",marginBottom:"8px"}}>
-            <span>🗺️ <span style={{color:"#f97316",fontWeight:700}}>第{gs.round}關</span></span>
-            <span>✅ 通關<span style={{color:"#4ade80",fontWeight:700}}>{gs.cleared}</span></span>
-            <span>⚔️ <span style={{color:"#fbbf24",fontWeight:700}}>{pCP}</span></span>
-            <span>👹 Boss<span style={{color:"#ef4444",fontWeight:700}}>#{gs.bossRound}</span></span>
+          <div style={{textAlign:"center",fontSize:"10px",color:"#78716c",marginBottom:"6px"}}>第{gs.round}關 | 通關{gs.cleared} | ⚔主角{pCP}</div>
+          {/* Mats display */}
+          <div style={{display:"flex",justifyContent:"center",gap:"10px",marginBottom:"8px",fontSize:"9px"}}>
+            <span style={{color:"#60a5fa"}}>R素材:{gs.starMats?.R||0}</span>
+            <span style={{color:"#c084fc"}}>SR素材:{gs.starMats?.SR||0}</span>
+            <span style={{color:"#fbbf24"}}>SSR素材:{gs.starMats?.SSR||0}</span>
           </div>
-
 
           {/* XP */}
-          <div style={{marginBottom:"8px"}}><div style={{display:"flex",justifyContent:"space-between",fontSize:"9px",color:"#78716c",marginBottom:"3px"}}><span style={{fontWeight:700,color:"#f97316"}}>⚔ EXP　Lv.{gs.level}</span><span>{gs.xp.toLocaleString()}/{xpN.toLocaleString()}</span></div><div style={{height:"7px",borderRadius:"4px",background:"rgba(255,255,255,0.05)",overflow:"hidden"}}><div style={{height:"100%",borderRadius:"4px",width:`${Math.min(xpP,100)}%`,background:"linear-gradient(90deg,#ef4444,#f97316,#fbbf24)",transition:"width 0.5s"}}/></div></div>
+          <div style={{marginBottom:"6px"}}><div style={{display:"flex",justifyContent:"space-between",fontSize:"9px",color:"#78716c",marginBottom:"2px"}}><span>EXP</span><span>{gs.xp}/{xpN}</span></div><div style={{height:"6px",borderRadius:"3px",background:"rgba(255,255,255,0.05)",overflow:"hidden"}}><div style={{height:"100%",borderRadius:"3px",width:`${Math.min(xpP,100)}%`,background:"linear-gradient(90deg,#ef4444,#f97316,#fbbf24)",transition:"width 0.5s"}}/></div></div>
 
-          {/* HP bar */}
-          <div style={{marginBottom:"8px"}}><div style={{display:"flex",justifyContent:"space-between",fontSize:"9px",color:"#78716c",marginBottom:"2px"}}><span>❤️ HP</span><span>{gs.hp}/{gs.maxHp}</span></div><div style={{height:"6px",borderRadius:"3px",background:"rgba(255,255,255,0.05)",overflow:"hidden"}}><div style={{height:"100%",borderRadius:"3px",width:`${hpP}%`,background:hpP>60?"#22c55e":hpP>30?"#f59e0b":"#ef4444",transition:"width 0.4s"}}/></div></div>
+          {/* HP + Gold */}
+          <div style={{display:"flex",gap:"8px",marginBottom:"12px"}}>
+            <div style={{flex:1}}><div style={{display:"flex",justifyContent:"space-between",fontSize:"9px",color:"#78716c",marginBottom:"2px"}}><span>❤️HP</span><span>{gs.hp}/{gs.maxHp}</span></div><div style={{height:"6px",borderRadius:"3px",background:"rgba(255,255,255,0.05)",overflow:"hidden"}}><div style={{height:"100%",borderRadius:"3px",width:`${hpP}%`,background:hpP>60?"#22c55e":hpP>30?"#f59e0b":"#ef4444",transition:"width 0.4s"}}/></div></div>
+            <div onClick={()=>setShop(true)} style={{display:"flex",alignItems:"center",gap:"4px",padding:"2px 10px",borderRadius:"8px",background:"rgba(251,191,36,0.08)",border:"1px solid rgba(251,191,36,0.2)",cursor:"pointer",animation:gP?"goldPop 0.4s ease":"none"}}><span style={{fontSize:"14px"}}>🪙</span><span style={{fontFamily:"'Black Ops One',cursive",color:"#fbbf24",fontSize:"14px"}}>{gs.gold}</span></div>
+          </div>
 
           {/* Nav */}
-          <div style={{display:"flex",gap:"2px",marginBottom:"6px",background:"rgba(255,255,255,0.03)",borderRadius:"14px",padding:"3px",border:"1px solid rgba(255,255,255,0.04)"}}>
-            {(()=>{
-              const canUpgrade=Object.keys(gs.cards).some(cid=>{const cd=gs.cards[cid];return cd&&cd.copies>=(Math.floor(cd.level/10)+1);});
-              const tabs=[{k:"train",l:"🔥",n:"訓練"},{k:"battle",l:"🗡️",n:"戰鬥"},{k:"cards",l:"🃏",n:"角色",dot:canUpgrade},{k:"bag",l:"🎒",n:"背包"},{k:"stats",l:"📊",n:"能力"},{k:"skills",l:"⚔️",n:"技能"}];
-              return tabs.map(t=>(<button key={t.k} onClick={()=>setVw(t.k)} style={{flex:1,padding:"8px 0px",borderRadius:"10px",border:"none",cursor:"pointer",fontFamily:"inherit",background:vw===t.k?"linear-gradient(135deg,rgba(239,68,68,0.25),rgba(249,115,22,0.15))":"transparent",color:vw===t.k?"#f97316":"#57534e",transition:"all 0.2s",position:"relative"}}>
-                <div style={{fontSize:"15px"}}>{t.l}</div>
-                <div style={{fontSize:"9px",fontWeight:700,marginTop:"1px"}}>{t.n}</div>
-                {t.dot&&<div style={{position:"absolute",top:4,right:4,width:8,height:8,borderRadius:4,background:"#ef4444",boxShadow:"0 0 6px rgba(239,68,68,0.8)"}}/>}
-              </button>));
-            })()}
-          </div>
-          {/* Util bar: gold + mail + music */}
-          <div style={{display:"flex",alignItems:"center",gap:"6px",marginBottom:"10px"}}>
-            <div onClick={()=>setShop(true)} style={{display:"flex",alignItems:"center",gap:"4px",padding:"6px 12px",borderRadius:"10px",background:"rgba(251,191,36,0.08)",border:"1px solid rgba(251,191,36,0.2)",cursor:"pointer",animation:gP?"goldPop 0.4s ease":"none",flex:1}}>
-              <span style={{fontSize:"14px"}}>🪙</span>
-              <span style={{fontFamily:"'Black Ops One',cursive",color:"#fbbf24",fontSize:"16px"}}>{gs.gold}</span>
-              <span style={{fontSize:"9px",color:"#78716c",marginLeft:"auto"}}>點擊抽卡</span>
-            </div>
-            <button onClick={()=>setShowMail(true)} style={{background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:"10px",width:40,height:40,cursor:"pointer",fontSize:"18px",position:"relative",flexShrink:0}}>
-              📬{unclaimedMail>0&&<div style={{position:"absolute",top:-3,right:-3,width:16,height:16,borderRadius:8,background:"#ef4444",fontSize:"9px",color:"#fff",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:900,boxShadow:"0 0 6px rgba(239,68,68,0.8)"}}>{unclaimedMail}</div>}
-            </button>
-            <button onClick={toggleMusic} style={{background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:"10px",width:40,height:40,cursor:"pointer",fontSize:"18px",flexShrink:0}}>{gs.musicOn?"🔊":"🔇"}</button>
+          <div style={{display:"flex",gap:"2px",marginBottom:"12px",background:"rgba(255,255,255,0.02)",borderRadius:"12px",padding:"3px"}}>
+            {[{k:"train",l:"🔥訓練"},{k:"battle",l:"🗡️戰鬥"},{k:"cards",l:"🃏角色"},{k:"stats",l:"📊能力"},{k:"skills",l:"⚔️技能"}].map(t=>(<button key={t.k} onClick={()=>setVw(t.k)} style={{flex:1,padding:"7px 2px",borderRadius:"9px",border:"none",cursor:"pointer",fontSize:"11px",fontWeight:700,fontFamily:"inherit",background:vw===t.k?"linear-gradient(135deg,rgba(239,68,68,0.2),rgba(249,115,22,0.12))":"transparent",color:vw===t.k?"#f97316":"#57534e",transition:"all 0.2s"}}>{t.l}</button>))}
           </div>
 
           {/* ═══ TRAIN ═══ */}
@@ -460,80 +449,6 @@ export default function App(){
             </div>}
           </div>}
 
-          {/* ═══ BAG ═══ */}
-          {vw==="bag"&&<div style={{animation:"fadeUp 0.3s ease-out"}}>
-            <div style={{textAlign:"center",marginBottom:"14px",fontSize:"13px",fontWeight:900,color:"#a8a29e",letterSpacing:"2px"}}>[ 背包 ]</div>
-
-            {/* Resources */}
-            <div style={{padding:"14px",borderRadius:"16px",background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.06)",marginBottom:"12px"}}>
-              <div style={{fontSize:"10px",fontWeight:700,color:"#78716c",marginBottom:"10px",letterSpacing:"2px"}}>▌ 資源</div>
-              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"8px"}}>
-                <div style={{padding:"10px",borderRadius:"12px",background:"rgba(251,191,36,0.06)",border:"1px solid rgba(251,191,36,0.15)"}}>
-                  <div style={{fontSize:"20px",marginBottom:"2px"}}>🪙</div>
-                  <div style={{fontFamily:"'Black Ops One',cursive",fontSize:"22px",color:"#fbbf24"}}>{gs.gold}</div>
-                  <div style={{fontSize:"9px",color:"#78716c"}}>金幣</div>
-                </div>
-                <div style={{padding:"10px",borderRadius:"12px",background:"rgba(34,197,94,0.06)",border:"1px solid rgba(34,197,94,0.15)"}}>
-                  <div style={{fontSize:"20px",marginBottom:"2px"}}>❤️</div>
-                  <div style={{fontFamily:"'Black Ops One',cursive",fontSize:"22px",color:"#22c55e"}}>{gs.hp}<span style={{fontSize:"12px",color:"#78716c"}}>/{gs.maxHp}</span></div>
-                  <div style={{fontSize:"9px",color:"#78716c"}}>生命值</div>
-                </div>
-              </div>
-            </div>
-
-            {/* Star Materials */}
-            <div style={{padding:"14px",borderRadius:"16px",background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.06)",marginBottom:"12px"}}>
-              <div style={{fontSize:"10px",fontWeight:700,color:"#78716c",marginBottom:"10px",letterSpacing:"2px"}}>▌ 升星素材</div>
-              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:"8px"}}>
-                {[{r:"R",c:"#60a5fa",bg:"rgba(59,130,246,0.08)",bc:"rgba(59,130,246,0.2)"},{r:"SR",c:"#c084fc",bg:"rgba(139,92,246,0.08)",bc:"rgba(139,92,246,0.2)"},{r:"SSR",c:"#fbbf24",bg:"rgba(251,191,36,0.08)",bc:"rgba(251,191,36,0.2)"}].map(({r,c,bg,bc})=>(
-                  <div key={r} style={{padding:"10px",borderRadius:"12px",background:bg,border:`1px solid ${bc}`,textAlign:"center"}}>
-                    <div style={{fontSize:"18px",marginBottom:"3px"}}>⭐</div>
-                    <div style={{fontFamily:"'Black Ops One',cursive",fontSize:"24px",color:c}}>{gs.starMats?.[r]||0}</div>
-                    <div style={{fontSize:"9px",color:c,fontWeight:700}}>{r} 素材</div>
-                    <div style={{fontSize:"8px",color:"#78716c",marginTop:"2px"}}>升星需 10 個</div>
-                  </div>
-                ))}
-              </div>
-              <div style={{marginTop:"8px",padding:"8px",borderRadius:"10px",background:"rgba(255,255,255,0.02)",fontSize:"9px",color:"#57534e",lineHeight:1.6,textAlign:"center"}}>
-                戰鬥勝利 / 完成任務可掉落素材<br/>前往【角色】頁面點卡片升星
-              </div>
-            </div>
-
-            {/* Card copies / shards */}
-            <div style={{padding:"14px",borderRadius:"16px",background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.06)",marginBottom:"12px"}}>
-              <div style={{fontSize:"10px",fontWeight:700,color:"#78716c",marginBottom:"10px",letterSpacing:"2px"}}>▌ 卡片碎片</div>
-              {Object.keys(gs.cards).length===0?<div style={{textAlign:"center",color:"#57534e",fontSize:"11px",padding:"10px"}}>尚無卡片碎片</div>:
-              <div style={{display:"flex",flexDirection:"column",gap:"6px"}}>
-                {Object.keys(gs.cards).map(cid=>{
-                  const card=CARD_POOL.find(c=>c.id===cid);const cd=gs.cards[cid];if(!card||!cd)return null;
-                  const cost=Math.floor(cd.level/10)+1;const canUp=cd.copies>=cost;
-                  return(<div key={cid} style={{display:"flex",alignItems:"center",gap:"10px",padding:"8px 10px",borderRadius:"10px",background:canUp?"rgba(34,197,94,0.05)":"rgba(255,255,255,0.01)",border:`1px solid ${canUp?"rgba(34,197,94,0.2)":"rgba(255,255,255,0.04)"}`}}>
-                    <CImg card={card} sz="xs" lvl={cd.level} stars={cd.stars}/>
-                    <div style={{flex:1}}>
-                      <div style={{fontSize:"11px",fontWeight:700,color:canUp?"#4ade80":RC[card.rarity].color}}>{card.name}</div>
-                      <div style={{fontSize:"9px",color:"#78716c"}}>碎片：{cd.copies} {canUp&&<span style={{color:"#4ade80",fontWeight:700}}>（可升級！）</span>}</div>
-                    </div>
-                    {canUp&&<div style={{width:8,height:8,borderRadius:4,background:"#ef4444",boxShadow:"0 0 6px rgba(239,68,68,0.8)",flexShrink:0}}/>}
-                  </div>);
-                })}
-              </div>}
-            </div>
-
-            {/* Progress */}
-            <div style={{padding:"14px",borderRadius:"16px",background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.06)"}}>
-              <div style={{fontSize:"10px",fontWeight:700,color:"#78716c",marginBottom:"10px",letterSpacing:"2px"}}>▌ 進度</div>
-              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:"6px"}}>
-                {[{l:"關卡",v:gs.round,c:"#f97316",i:"🗺️"},{l:"通關",v:gs.cleared,c:"#4ade80",i:"✅"},{l:"Boss",v:gs.bossRound,c:"#ef4444",i:"👹"},{l:"等級",v:gs.level,c:"#fbbf24",i:"⚔️"},{l:"角色",v:Object.keys(gs.cards).length+"/"+CARD_POOL.length,c:"#c084fc",i:"🃏"},{l:"已解技能",v:(gs.skills||[]).length,c:"#22d3ee",i:"💫"}].map(({l,v,c,i})=>(
-                  <div key={l} style={{padding:"8px",borderRadius:"10px",background:"rgba(255,255,255,0.02)",textAlign:"center"}}>
-                    <div style={{fontSize:"14px"}}>{i}</div>
-                    <div style={{fontFamily:"'Black Ops One',cursive",fontSize:"16px",color:c,marginTop:"1px"}}>{v}</div>
-                    <div style={{fontSize:"8px",color:"#78716c"}}>{l}</div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>}
-
           {/* ═══ CARDS ═══ */}
           {vw==="cards"&&<div style={{animation:"fadeUp 0.3s ease-out"}}>
             <div style={{textAlign:"center",marginBottom:"12px",fontSize:"12px",fontWeight:700,color:"#a8a29e"}}>[角色收藏] {owned}/{CARD_POOL.length}</div>
@@ -542,12 +457,7 @@ export default function App(){
               <CImg card={PLAYER_CARD} sz="sm" lvl={gs.level}/>
               <div><div style={{fontSize:"12px",fontWeight:700,color:"#22d3ee"}}>主角　⚔{pCP}</div><div style={{fontSize:"9px",color:"#78716c"}}>攻{pStats.atk} 防{pStats.def} 速{pStats.spd} HP{pStats.hp}</div><div style={{fontSize:"9px",color:"#78716c"}}>能力值隨訓練成長</div></div>
             </div>
-            <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:"7px"}}>{CARD_POOL.map(c=>{const o=gs.cards[c.id];const cp=o?cardCP(c,o.level,o.stars||0):0;return(<div key={c.id} onClick={()=>o&&setCDet(c)} style={{textAlign:"center",opacity:o?1:0.25,cursor:o?"pointer":"default",position:"relative"}}>
-                  <CImg card={c} sz="sm" lvl={o?.level} stars={o?.stars}/>
-                  {o&&o.copies>=(Math.floor((o.level||1)/10)+1)&&<div style={{position:"absolute",top:0,right:0,width:10,height:10,borderRadius:5,background:"#ef4444",boxShadow:"0 0 6px rgba(239,68,68,0.9)",border:"1px solid #080000"}}/>}
-                  <div style={{fontSize:"9px",color:o?RC[c.rarity].color:"#57534e",marginTop:"2px",fontWeight:700}}>{c.name}</div>
-                  {o&&<div style={{fontSize:"8px",color:"#f97316",fontFamily:"'Black Ops One',cursive"}}>⚔{cp}</div>}
-                </div>);})}</div>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:"7px"}}>{CARD_POOL.map(c=>{const o=gs.cards[c.id];const cp=o?cardCP(c,o.level,o.stars||0):0;return(<div key={c.id} onClick={()=>o&&setCDet(c)} style={{textAlign:"center",opacity:o?1:0.25,cursor:o?"pointer":"default"}}><CImg card={c} sz="sm" lvl={o?.level} stars={o?.stars}/><div style={{fontSize:"9px",color:o?RC[c.rarity].color:"#57534e",marginTop:"2px",fontWeight:700}}>{c.name}</div>{o&&<div style={{fontSize:"8px",color:"#f97316",fontFamily:"'Black Ops One',cursive"}}>⚔{cp}</div>}</div>);})}</div>
           </div>}
 
           {/* ═══ STATS ═══ */}
